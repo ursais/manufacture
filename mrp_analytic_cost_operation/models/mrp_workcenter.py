@@ -10,5 +10,5 @@ class MRPWorkcenter(models.Model):
     cost_type_ids = fields.One2many(
         "mrp.workcenter.analytic.structure",
         "work_center_id",
-        string="Cost Type",
+        string="Cost Structure",
     )

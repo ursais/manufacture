@@ -17,4 +17,6 @@
         "views/account_analytic_line_view.xml",
     ],
     "installable": True,
+    "maintainer": "dreispt",
+    "development_status": "Alpha",
 }
