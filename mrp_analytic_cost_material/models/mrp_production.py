@@ -29,7 +29,7 @@ class MrpProduction(models.Model):
         AnalyticLine = self.env["account.analytic.line"].sudo()
         order_raw_moves = self.mapped("move_raw_ids")
         existing_items = AnalyticLine.search(
-            [("stock_move_id ", "in", order_raw_moves.ids)]
+            [("stock_move_id", "in", order_raw_moves.ids)]
         )
         for order in self.filtered("analytic_account_id"):
             for line in order.move_raw_ids:

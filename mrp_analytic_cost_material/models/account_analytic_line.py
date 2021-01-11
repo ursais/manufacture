@@ -10,6 +10,7 @@ class AccountAnalyticLine(models.Model):
     stock_move_id = fields.Many2one(
         "stock.move",
         string="Related Stock Move",
+        index=True,
     )
     manufacturing_order_id = fields.Many2one(
         "mrp.production",
