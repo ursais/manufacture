@@ -9,7 +9,7 @@
         />
         <field name="arch" type="xml">
             <field name="product_category_id" position="after">
-                <field name="workcenter_productivity_id" />
+                <field name="workorder_id" />
             </field>
         </field>
     </record>
