@@ -7,38 +7,37 @@ from odoo import models
 class MrpProduction(models.Model):
     _inherit = "mrp.production"
 
-    def _prepare_material_analytic_line(self):
+    def _prepare_material_analytic_line(self, move):
         self.ensure_one()
-        order = self.raw_material_production_id
         return {
-            "name": self.product_id.default_code or "",
-            "account_id": order.analytic_account_id.id or False,
-            "ref": order.name,
-            "unit_amount": self.product_uom_qty,
-            "company_id": order.company_id.id,
-            "manufacturing_order_id": order.id,
-            "product_id": self.product_id.id or False,
-            "stock_move_id": self.id,
+            "name": "{} / {}".format(self.name, move.product_id.display_name),
+            "ref": self.name,
+            "account_id": self.analytic_account_id.id or False,
+            "manufacturing_order_id": self.id,
+            "company_id": self.company_id.id,
+            "stock_move_id": move.id,
+            "product_id": move.product_id.id or False,
+            "unit_amount": move.forecast_availability,
         }
 
     def generate_analytic_line(self):
         """Generate Analytic Lines Manually."""
         # FIXME: this is a placeholder for final logic
         # TODO: when should Analytic Items generation be triggered?
-        # TODO: what to do if prevous items were already generated?
         AnalyticLine = self.env["account.analytic.line"].sudo()
         order_raw_moves = self.mapped("move_raw_ids")
         existing_items = AnalyticLine.search(
-            [("stock_move_id ", "in", order_raw_moves.ids)]
+            [("stock_move_id", "in", order_raw_moves.ids)]
         )
         for order in self.filtered("analytic_account_id"):
-            for line in order.move_raw_ids:
-                line_vals = line._prepare_material_analytic_line()
-                if line in existing_items:
-                    analytic_line = existing_items.filter(
-                        lambda x: x.stock_move_id == line
+            for move in order.move_raw_ids:
+                line_vals = order._prepare_material_analytic_line(move)
+                if move in existing_items.mapped("stock_move_id"):
+                    analytic_line = existing_items.filtered(
+                        lambda x: x.stock_move_id == move
                     )
                     analytic_line.write(line_vals)
-                else:
+                    analytic_line.on_change_unit_amount()
+                elif move.forecast_availability:
                     analytic_line = AnalyticLine.create(line_vals)
-                analytic_line.on_change_unit_amount()
+                    analytic_line.on_change_unit_amount()
