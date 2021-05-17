@@ -4,7 +4,7 @@
 import logging
 from datetime import datetime
 
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 
 _logger = logging.getLogger(__name__)
 
@@ -44,78 +44,59 @@ class MrpBom(models.Model):
     @api.model
     def compute_bom_cost_rollup(self):
 
-        try:
-            _logger.info("BOM Cost Rollup Process Started")
+        _logger.info("BOM Cost Rollup Process Started")
 
-            # Get BoM's whose product is using costing method as standard
-            current_time = datetime.now()
+        # Get BoM's whose product is using costing method as standard
+        current_time = datetime.now()
 
-            bom_ids = self.sudo().search(
-                [("product_tmpl_id.categ_id.property_cost_method", "=", "standard")]
-            )
+        bom_ids = self.sudo().search(
+            [("product_tmpl_id.categ_id.property_cost_method", "=", "standard")]
+        )
+        for bom in bom_ids:
+            # Check if cost method is standard
+            if (
+                bom.product_tmpl_id.categ_id.property_cost_method
+                and bom.product_tmpl_id.categ_id.property_cost_method == "standard"
+            ):
+                # Get all product variants for BoM product template
+                product_variants = self.get_product_variants(bom.product_tmpl_id)
+                # update only if necessary
+                if bom._update_bom(bom.std_cost_update_date):
+                    product_variants.action_bom_cost()
+
+        _logger.info("BOM Cost Rollup Process Completed")
+
+        product_list = {}
+        # FIXME: code smell - variable name reused
+        bom_ids = self.sudo().search([("std_cost_update_date", ">=", current_time)])
+        if bom_ids:
+            _logger.info("BOM Cost Rollup Email Process Started")
             for bom in bom_ids:
-                # Check if cost method is standard
-                if (
-                    bom.product_tmpl_id.categ_id.property_cost_method
-                    and bom.product_tmpl_id.categ_id.property_cost_method == "standard"
-                ):
-                    # Get all product variants for BoM product template
-                    product_variants = self.get_product_variants(bom.product_tmpl_id)
-                    # update only if necessary
-                    if bom._update_bom(bom.std_cost_update_date):
-                        product_variants.action_bom_cost()
+                product_variants = self.get_product_variants(bom.product_tmpl_id)
+                for variant in product_variants:
+                    product_list[variant.default_code] = variant.standard_price
 
-            _logger.info("BOM Cost Rollup Process Completed")
-
-            product_list = {}
-            bom_ids = self.sudo().search([("std_cost_update_date", ">=", current_time)])
-
-            if bom_ids:
-                _logger.info("BOM Cost Rollup Email Process Started")
-                for bom in bom_ids:
-                    product_variants = self.get_product_variants(bom.product_tmpl_id)
-                    for variant in product_variants:
-                        product_list[variant.default_code] = variant.standard_price
-
-                # Log if no user email to notify
-                if not self.env.user.company_id.bom_cost_email:
-                    _logger.error(
-                        "Exception while executing \
-                        BoM Cost Rollup: \
-                        Please configure email to notify from Company."
-                    )
-
-                # Final step to notify
-                # send email notification about completion
-                subject = _("Event Scheduler Notification for event: BoM Cost Rollup")
-                body = _(
-                    """Event Scheduler for BoM Cost Rollup was completed:
-                                            - Date: %s
-                                            - Total Product's updated: %s\n
-                                            """
-                    % (
-                        str(datetime.now().strftime("%m/%d/%Y, %H:%M:%S")),
-                        len(product_list),
-                    )
+            # TODO: use an email template, no settings config will be needed then
+            # Log if no user email to notify
+            if not self.env.user.company_id.bom_cost_email:
+                _logger.error(
+                    "Exception while executing \
+                    BoM Cost Rollup: \
+                    Please configure email to notify from Company."
                 )
-                for key, value in product_list.items():
-                    msg = "Product %s Standard Cost: %8.2f\n" % (key, value)
-                    body += msg
+            template_id = self.env.ref(
+                "product_cost_rollup_to_bom.bom_cost_rollup_email_template"
+            )
+            template_id.with_context(
+                {
+                    "product_list_len": len(product_list),
+                    "email_to": self.env.user.company_id.bom_cost_email,
+                    "email_from": self.env.user.partner_id.email,
+                    "product_list": product_list,
+                }
+            ).send_mail(self.id, force_send=True)
 
-                email_to = list({self.env.user.company_id.bom_cost_email})
-
-                email = self.env["ir.mail_server"].build_email(
-                    email_from=self.env.user.partner_id.email,
-                    email_to=email_to,
-                    subject=subject,
-                    body=body,
-                )
-                self.env["ir.mail_server"].send_email(email)
-                _logger.info("BOM Cost Rollup Email Process Completed")
-            else:
-                _logger.info("No changes to BOM Cost Rollup. No Email.")
-
-        except Exception as e:
-            _logger.error("Exception while executing BoM Cost Rollup: %s.", str(e))
-
+            _logger.info("BOM Cost Rollup Email Process Completed")
+        else:
+            _logger.info("No changes to BOM Cost Rollup. No Email.")
         return True

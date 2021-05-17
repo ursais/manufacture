@@ -21,6 +21,7 @@
         "views/mrp_bom.xml",
         "views/res_config_settings.xml",
         "data/cost_rollup_scheduler.xml",
+        "data/email_template.xml",
     ],
     "installable": True,
 }

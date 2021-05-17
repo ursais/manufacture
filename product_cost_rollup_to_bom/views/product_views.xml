@@ -9,6 +9,11 @@
             <field name="company_id" position="before">
                 <field name="std_cost_update_date" readonly="1" />
             </field>
+            <button name="button_bom_cost" position="attributes">
+                <attribute
+                    name="attrs"
+                >{'invisible': ['|', ('bom_count', '=', 0), '&amp;', ('valuation', '=', 'real_time'), ('cost_method', 'in', ('fifo','standard'))]}</attribute>
+            </button>
         </field>
     </record>
 </odoo>
