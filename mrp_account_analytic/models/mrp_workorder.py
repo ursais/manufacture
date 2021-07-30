@@ -26,34 +26,40 @@ class MRPWorkOrder(models.Model):
         }
 
     def generate_mrp_work_analytic_line(self):
-        """Generate Analytic Lines"""
+        """
+        Generate Analytic Lines
+        Only one like per workorder, to avoid accumulated qty errors
+        if additional new lines were created.
+        """
         AnalyticLine = self.env["account.analytic.line"].sudo()
         workorders = self.filtered("production_id.analytic_account_id")
         existing_items = workorders and AnalyticLine.search(
-            [("workorder_id", "in", self.ids)]
+            [("workorder_id", "in", workorders.ids)]
         )
         for workorder in workorders:
-            line_vals = self._prepare_mrp_workorder_analytic_item()
-            analytic_lines = existing_items.filtered(
+            line_vals = workorder._prepare_mrp_workorder_analytic_item()
+            analytic_line = existing_items.filtered(
                 lambda x: x.workorder_id == workorder
             )
-            if analytic_lines:
-                for analytic_line in analytic_lines:
-                    analytic_line.write(line_vals)
-                    analytic_line.on_change_unit_amount()
+            if analytic_line:
+                analytic_line.write(line_vals)
             else:
                 analytic_line = AnalyticLine.create(line_vals)
-                analytic_line.on_change_unit_amount()
+            analytic_line.on_change_unit_amount()
+
+
+class MrpWorkcenterProductivity(models.Model):
+    _inherit = "mrp.workcenter.productivity"
 
     @api.model
     def create(self, vals):
-        res = super().create(vals)
-        if vals.get("duration"):
-            res.generate_mrp_work_analytic_line()
-        return res
+        timelog = super().create(vals)
+        if vals.get("date_end"):
+            timelog.workorder_id.generate_mrp_work_analytic_line()
+        return timelog
 
     def write(self, vals):
+        if vals.get("date_end"):
+            self.workorder_id.generate_mrp_work_analytic_line()
         res = super().write(vals)
-        if vals.get("duration"):
-            self.generate_mrp_work_analytic_line()
         return res
