@@ -51,8 +51,8 @@ class MRPProduction(models.Model):
         just after MO confirmation.
         """
         res = super().action_confirm()
-        self.mapped("move_raw_ids").set_tracking_item(update_planned=True)
-        self.mapped("workorder_ids").set_tracking_item(update_planned=True)
+        self.mapped("move_raw_ids").populate_tracking_items()
+        self.mapped("workorder_ids").populate_tracking_items()
         return res
 
     def write(self, vals):
@@ -66,30 +66,19 @@ class MRPProduction(models.Model):
         TODO: in what cases the planned amounts update should be prevented?
         """
         res = super().write(vals)
-        # FIXME: adding non planned lines should create zero budget tracking items
         if "analytic_account_id" in vals:
-            update_planned = any(x.state == "confirmed" for x in self)
-            tracking_items = self._get_tracking_items()
-            tracking_items.write({"analytic_id": vals["analytic_account_id"]})
-            tracking_items.child_ids.write({"analytic_id": vals["analytic_account_id"]})
-            self.move_raw_ids.set_tracking_item(update_planned=update_planned)
-            self.workorder_ids.set_tracking_item(update_planned=update_planned)
+            confirmed_mos = res.filtered(lambda x: x.state == "draft")
+            confirmed_mos.move_raw_ids.populate_tracking_items()
+            confirmed_mos.workorder_ids.populate_tracking_items()
         return res
 
     def button_mark_done(self):
         res = super().button_mark_done()
         mfg_done = self.filtered(lambda x: x.state == "done")
-        tracking_items = mfg_done._get_tracking_items()
-        tracking_items.process_wip_and_variance(close=True)
+        mfg_done._get_tracking_items().process_wip_and_variance(close=True)
         return res
 
     def action_cancel(self):
         res = super().action_cancel()
         self._get_tracking_items().action_cancel()
         return res
-
-    def copy(self, default=None):
-        new = super().copy(default=default)
-        new.move_raw_ids.set_tracking_item()
-        new.workorder_ids.set_tracking_item()
-        return new
