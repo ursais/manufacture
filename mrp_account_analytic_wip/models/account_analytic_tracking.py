@@ -47,7 +47,7 @@ class AnalyticTrackingItem(models.Model):
         if dest_location.valuation_in_account_id:
             accounts["stock_input"] = dest_location.valuation_in_account_id
         if dest_location.valuation_out_account_id:
-            accounts["stock_input"] = dest_location.valuation_out_account_id
+            accounts["stock_output"] = dest_location.valuation_out_account_id
         return accounts
 
     def _get_unit_cost(self):
@@ -77,13 +77,32 @@ class AnalyticTrackingItem(models.Model):
         return tracking
 
     def _prepare_clear_wip_journal_entries(self):
+        """
+        Adds clear WIP JEs for raw materials.
+        The other cases are handled in account_analytic_wip.
+        """
         self and self.ensure_one()
-        # Move Lines to clear the Work Order WIP
-        move_lines, wip_journal = super()._prepare_clear_wip_journal_entries()
+        if self.stock_move_id:
+            # Move Lines to clear the Raw Material WIP
+            total_amount = self.accounted_amount
+            var_amount = self.variance_actual_amount
+            wip_amount = total_amount - var_amount
 
-        # Move Lines to clear the Raw Material WIP
-        # accounts = self._get_accounting_data_for_valuation()
-        for _wip_je in self.stock_move_id.account_move_ids:
-            # FIXME: this is a WIP
-            pass
-        return move_lines, wip_journal
+            accounts = self._get_accounting_data_for_valuation()
+            journal = accounts["stock_journal"]
+            acc_wip = accounts["stock_input"]
+            acc_clear = accounts["stock_output"]
+            acc_var = accounts.get("stock_variance") or accounts["stock_output"]
+
+            # Credit total on WIP account
+            # Debit WIP amount on Clear account
+            # Debit Variance on Variance account
+            move_lines = [
+                self._prepare_account_move_line(acc_wip, -total_amount),
+                self._prepare_account_move_line(acc_clear, wip_amount),
+                self._prepare_account_move_line(acc_var, var_amount),
+            ]
+        else:
+            # Move Lines to clear the Work Order WIP
+            move_lines, journal = super()._prepare_clear_wip_journal_entries()
+        return move_lines, journal

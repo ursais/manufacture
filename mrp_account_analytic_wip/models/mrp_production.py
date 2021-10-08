@@ -21,6 +21,28 @@ class MRPProduction(models.Model):
     )
     currency_id = fields.Many2one("res.currency", related="company_id.currency_id")
 
+    @api.depends(
+        "move_raw_ids.state",
+        "move_raw_ids.quantity_done",
+        "move_finished_ids.state",
+        "workorder_ids",
+        "workorder_ids.state",
+        "product_qty",
+        "qty_producing",
+    )
+    def _compute_state(self):
+        """
+        Having all raw material moves done inow is not enough to set the MO as done.
+        Only set as done if the finished moves are all done.
+        """
+        super()._compute_state()
+        for production in self:
+            if (
+                not all(move.state == "done" for move in production.move_finished_ids)
+                and production.state == "done"
+            ):
+                production.state = "to_close"
+
     def _get_tracking_items(self):
         """
         Returns a recordset with the related Ttacking Items
@@ -43,18 +65,14 @@ class MRPProduction(models.Model):
                 mo.analytic_tracking_item_ids.mapped("actual_amount")
             )
 
-    def _get_accounting_data_for_valuation(self):
-        """
-        Extension hook to set the accounts to use
-        """
-        # TODO: Deprecate property_wip_journal + wip_account + variance_account
-        return self.product_id.product_tmpl_id.get_product_accounts()
-
     def _post_inventory(self, cancel_backorder=False):
         """
         Does MO closing.
         Ensure all done raw material moves are set
         on the consumed lines field, for correct traceability.
+
+        The Odoo code will post all material to the "Input" (WIP) account.
+        So the clear WIP method may need to convert some of this WIP into Variances.
         """
         # _post_inventory will post missing raw material WIP and the final product
         super()._post_inventory(cancel_backorder=cancel_backorder)
