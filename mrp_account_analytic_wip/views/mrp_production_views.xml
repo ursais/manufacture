@@ -8,7 +8,7 @@
                 <button
                     name="action_post_inventory_wip"
                     type="object"
-                    string="Post Inventory"
+                    string="Post WIP"
                     attrs="{'invisible': [('state', 'in', ('draft', 'confirmed', 'done', 'cancel'))]}"
                 />
             </button>

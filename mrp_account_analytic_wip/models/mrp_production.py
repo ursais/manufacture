@@ -1,8 +1,11 @@
 # Copyright (C) 2021 Open Source Integrators
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
+import logging
 
 from odoo import _, api, fields, models
+
+_logger = logging.getLogger(__name__)
 
 
 class MRPProduction(models.Model):
@@ -133,6 +136,63 @@ class MRPProduction(models.Model):
 
         return True
 
+    def _prepare_clear_wip_account_line(self, account, amount):
+        # Note: do not set analytic_account_id,
+        # as that triggers a (repeated) Analytic Item
+        return {
+            "name": _("Clear WIP %s") % (self.display_name),
+            "product_id": self.product_id.id,
+            "product_uom_id": self.product_id.uom_id.id,
+            "account_id": account.id,
+            "debit": amount if amount > 0.0 else 0.0,
+            "credit": -amount if amount < 0.0 else 0.0,
+        }
+
+    def _prepare_clear_wip_journal_entries(self):
+        """
+        Add final Clear WIP JE journal entry.
+        Looks up the WIP account balance and clears it using the Variance account.
+
+        - WIP Account is the Production Location Input Account.
+        - Variance Account is the Production Location Variance account.
+        """
+        for prod in self:
+            # Find WIP and Variance Accounts
+            prod_location = prod.production_location_id
+            acc_wip = prod_location.valuation_in_account_id
+            acc_var = prod_location.valuation_variance_account_id
+
+            if acc_var:
+                # Find the balance of the WIP account...
+                stock_moves = prod.move_raw_ids | prod.move_finished_ids
+                wip_moves = (
+                    stock_moves.account_move_ids
+                    | prod.analytic_tracking_item_ids.account_move_ids
+                )
+                wip_items = wip_moves.line_ids.filtered(
+                    lambda x: x.account_id == acc_wip
+                )
+                wip_balance = sum(wip_items.mapped("balance"))
+                # ...and post the difference to Variances.
+                move_lines = [
+                    prod._prepare_clear_wip_account_line(acc_wip, -wip_balance),
+                    prod._prepare_clear_wip_account_line(acc_var, +wip_balance),
+                ]
+
+                final_prod_move = prod.move_finished_ids.filtered(
+                    lambda x: x.product_id == prod.product_id
+                )
+                final_acc_move = final_prod_move.account_move_ids[:1]
+                wip_move = final_acc_move.copy(
+                    {
+                        "ref": _("%s Clear WIP") % (prod.name),
+                        "line_ids": [(0, 0, x) for x in move_lines or [] if x],
+                    }
+                )
+                wip_move._post()
+            else:
+                _logger.debug("No Variance account found for MO %s", prod.display_name)
+
     def action_view_analytic_tracking_items(self):
         self.ensure_one()
         return {
@@ -155,9 +215,14 @@ class MRPProduction(models.Model):
         return res
 
     def button_mark_done(self):
+        # Post all pending WIP and then generate MO close JEs
+        self.action_post_inventory_wip()
+        # Run finished product valuation (no raw materials to valuate now)
         res = super().button_mark_done()
         mfg_done = self.filtered(lambda x: x.state == "done")
         mfg_done._get_tracking_items().process_wip_and_variance(close=True)
+        # Raw Material - clear final WIP and post Variances
+        mfg_done._prepare_clear_wip_journal_entries()
         return res
 
     def action_cancel(self):

@@ -41,15 +41,19 @@ class AnalyticTrackingItem(models.Model):
         """
         For raw material stock moves, consider the destination location (Production)
         input and output accounts.
-        - "stock_input": is the WIP account
-        - "stock_output": is the WIP Clearing account
+        - "stock_input": is the WIP account where consumption is expected to have been
+          posted
+        - "stock_variance": is the Variance account
         """
         accounts = super()._get_accounting_data_for_valuation()
         dest_location = self.stock_move_id.location_dest_id
+        # Only set for raw materials
         if dest_location.valuation_in_account_id:
             accounts["stock_input"] = dest_location.valuation_in_account_id
         if dest_location.valuation_out_account_id:
             accounts["stock_output"] = dest_location.valuation_out_account_id
+        if dest_location.valuation_variance_account_id:
+            accounts["stock_variance"] = dest_location.valuation_variance_account_id
         return accounts
 
     def _get_unit_cost(self):
@@ -67,7 +71,7 @@ class AnalyticTrackingItem(models.Model):
         Locate existing Tracking Item.
         - For Stock Moves, locate by Product, and multtiple lines
           can match the same Tracking Item.
-        - For Work Ordes, locate by Work Order
+        - For Work Order, locate by Work Order
         """
         tracking = super()._get_tracking_item()
         if self.stock_move_id:
@@ -77,34 +81,3 @@ class AnalyticTrackingItem(models.Model):
         if self.workorder_id:
             tracking = tracking.filtered(lambda x: x.workorder_id == self.workorder_id)
         return tracking
-
-    def _prepare_clear_wip_journal_entries(self):
-        """
-        Adds clear WIP JEs for raw materials.
-        The other cases are handled in account_analytic_wip.
-        """
-        self and self.ensure_one()
-        if self.stock_move_id:
-            # Move Lines to clear the Raw Material WIP
-            total_amount = self.accounted_amount
-            var_amount = self.variance_actual_amount
-            wip_amount = total_amount - var_amount
-
-            accounts = self._get_accounting_data_for_valuation()
-            journal = accounts["stock_journal"]
-            acc_wip = accounts["stock_input"]
-            acc_clear = accounts["stock_output"]
-            acc_var = accounts.get("stock_variance") or acc_wip
-
-            # Credit total on WIP account
-            # Debit WIP amount on Clear account
-            # Debit Variance on Variance account
-            move_lines = [
-                self._prepare_account_move_line(acc_wip, -total_amount),
-                self._prepare_account_move_line(acc_clear, wip_amount),
-                self._prepare_account_move_line(acc_var, var_amount),
-            ]
-        else:
-            # Move Lines to clear the Work Order WIP
-            move_lines, journal = super()._prepare_clear_wip_journal_entries()
-        return move_lines, journal
