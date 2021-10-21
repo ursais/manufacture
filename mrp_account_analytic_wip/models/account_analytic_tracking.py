@@ -53,8 +53,6 @@ class AnalyticTrackingItem(models.Model):
             accounts["stock_wip"] = accounts["stock_input"]
         if dest_location.valuation_out_account_id:
             accounts["stock_output"] = dest_location.valuation_out_account_id
-        if dest_location.valuation_variance_account_id:
-            accounts["stock_variance"] = dest_location.valuation_variance_account_id
         return accounts
 
     def _get_unit_cost(self):

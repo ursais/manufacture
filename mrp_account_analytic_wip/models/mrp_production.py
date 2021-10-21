@@ -35,8 +35,8 @@ class MRPProduction(models.Model):
     )
     def _compute_state(self):
         """
-        Having all raw material moves done inow is not enough to set the MO as done.
-        Only set as done if the finished moves are all done.
+        Now aving all raw material moves done is not enough to set the MO as done.
+        Should only set as done if the finished moves are all done.
         """
         super()._compute_state()
         for production in self:
@@ -72,7 +72,7 @@ class MRPProduction(models.Model):
         """
         Does MO closing.
         Ensure all done raw material moves are set
-        on the consumed lines field, for correct traceability.
+        on the consumed lines field, for correct traceability (and proper unbuild).
 
         The Odoo code will post all material to the "Input" (WIP) account.
         So the clear WIP method may need to convert some of this WIP into Variances.
@@ -95,10 +95,11 @@ class MRPProduction(models.Model):
 
     def action_post_inventory_wip(self, cancel_backorder=False):
         """
-        A variation of _post_inventory that allows consuming
-        raw materials during MO execution, rather than only at
-        MO completion.
+        A variation of _post_inventory that allows consuming raw materials
+        during MO execution, rather than only at MO completion.
         Triggered by button click, not automatic on raw material consumption.
+        TODO: have an action available on MO list view
+        TODO: run through a daily cron
         """
         for order in self:
             # Raw Material Consumption, closely following _post_inventory()
@@ -159,30 +160,52 @@ class MRPProduction(models.Model):
         for prod in self:
             # Find WIP and Variance Accounts
             prod_location = prod.production_location_id
-            acc_wip = prod_location.valuation_in_account_id
+            # acc_wip_prod = prod_location.valuation_in_account_id
             acc_var = prod_location.valuation_variance_account_id
+            acc_clear = prod_location.valuation_clear_account_id
 
-            if acc_var:
-                # Find the balance of the WIP account...
-                stock_moves = prod.move_raw_ids | prod.move_finished_ids
-                wip_moves = (
-                    stock_moves.account_move_ids
-                    | prod.analytic_tracking_item_ids.account_move_ids
+            if not (acc_clear and acc_var):
+                _logger.debug(
+                    "No Clear or Variance account found for MO %s", prod.display_name
                 )
-                wip_items = wip_moves.line_ids.filtered(
-                    lambda x: x.account_id == acc_wip
-                )
-                wip_balance = sum(wip_items.mapped("balance"))
-                # ...and post the difference to Variances.
-                move_lines = [
-                    prod._prepare_clear_wip_account_line(acc_wip, -wip_balance),
-                    prod._prepare_clear_wip_account_line(acc_var, +wip_balance),
-                ]
+                continue
 
-                final_prod_move = prod.move_finished_ids.filtered(
-                    lambda x: x.product_id == prod.product_id
-                )
-                final_acc_move = final_prod_move.account_move_ids[:1]
+            # Find the balance of the WIP account...
+            # Issue: Finished product has no related account moves!
+            stock_moves = prod.move_raw_ids | prod.move_finished_ids
+            stock_account_moves = (
+                stock_moves.account_move_ids
+                | prod.analytic_tracking_item_ids.account_move_ids
+            )
+            wip_items = stock_account_moves.line_ids.filtered("is_wip")
+
+            # ... clear each of the WIP accounts
+            move_lines = []
+            accounts_wip = wip_items.mapped("account_id")
+            for acc_wip in accounts_wip:
+                wip_acc_items = wip_items.filtered(lambda x: x.account_id == acc_wip)
+                wip_acc_bal = sum(wip_acc_items.mapped("balance"))
+                # Should we do separate Journal Entry for each WIp account?
+                if wip_acc_bal:
+                    move_lines.extend(
+                        [
+                            prod._prepare_clear_wip_account_line(acc_wip, -wip_acc_bal),
+                            prod._prepare_clear_wip_account_line(
+                                acc_clear, +wip_acc_bal
+                            ),
+                        ]
+                    )
+                    # print("a", acc_wip.display_name, "->",
+                    # acc_clear.display_name, wip_acc_bal)
+
+            # The final product valuation move is used as a template for the header
+            # Alternative solution would be to add a prepare header method
+            final_prod_move = prod.move_finished_ids.filtered(
+                lambda x: x.product_id == prod.product_id
+            )
+            final_acc_move = final_prod_move.account_move_ids[:1]
+            if move_lines and final_acc_move:
+                # wip_move = self.env["account.move"].create(
                 wip_move = final_acc_move.copy(
                     {
                         "ref": _("%s Clear WIP") % (prod.name),
@@ -190,8 +213,23 @@ class MRPProduction(models.Model):
                     }
                 )
                 wip_move._post()
-            else:
-                _logger.debug("No Variance account found for MO %s", prod.display_name)
+
+            # ... and post the difference to Variances.
+            wip_balance = sum(wip_items.mapped("balance"))
+            if wip_balance and final_acc_move:
+                move_lines = [
+                    prod._prepare_clear_wip_account_line(acc_clear, -wip_balance),
+                    prod._prepare_clear_wip_account_line(acc_var, +wip_balance),
+                ]
+                # print("b", acc_clear.display_name, "->", acc_var.display_name, wip_balance)
+                # wip_move = self.env["account.move"].create(
+                wip_move = final_acc_move.copy(
+                    {
+                        "ref": _("%s Clear WIP") % (prod.name),
+                        "line_ids": [(0, 0, x) for x in move_lines or [] if x],
+                    }
+                )
+                wip_move._post()
 
     def action_view_analytic_tracking_items(self):
         self.ensure_one()
@@ -219,7 +257,7 @@ class MRPProduction(models.Model):
         self.action_post_inventory_wip()
         # Run finished product valuation (no raw materials to valuate now)
         res = super().button_mark_done()
-        mfg_done = self.filtered(lambda x: x.state == "done")
+        mfg_done = self  # TODO: ? .filtered(lambda x: x.state == "done")
         mfg_done._get_tracking_items().process_wip_and_variance(close=True)
         # Raw Material - clear final WIP and post Variances
         mfg_done._prepare_clear_wip_journal_entries()
