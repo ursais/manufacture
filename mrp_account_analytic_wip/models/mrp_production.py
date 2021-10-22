@@ -88,8 +88,9 @@ class MRPProduction(models.Model):
             order.move_finished_ids.move_line_ids.consume_line_ids = [
                 (6, 0, consume_move_lines.ids)
             ]
+            # TODO DROP
             # Clear the WIP Balance
-            order.analytic_tracking_item_ids.clear_wip_journal_entries()
+            # order.analytic_tracking_item_ids.clear_wip_journal_entries()
 
         return True
 
@@ -149,7 +150,7 @@ class MRPProduction(models.Model):
             "credit": -amount if amount < 0.0 else 0.0,
         }
 
-    def _prepare_clear_wip_journal_entries(self):
+    def clear_wip_final(self):
         """
         Add final Clear WIP JE journal entry.
         Looks up the WIP account balance and clears it using the Variance account.
@@ -195,8 +196,6 @@ class MRPProduction(models.Model):
                             ),
                         ]
                     )
-                    # print("a", acc_wip.display_name, "->",
-                    # acc_clear.display_name, wip_acc_bal)
 
             # The final product valuation move is used as a template for the header
             # Alternative solution would be to add a prepare header method
@@ -205,10 +204,9 @@ class MRPProduction(models.Model):
             )
             final_acc_move = final_prod_move.account_move_ids[:1]
             if move_lines and final_acc_move:
-                # wip_move = self.env["account.move"].create(
                 wip_move = final_acc_move.copy(
                     {
-                        "ref": _("%s Clear WIP") % (prod.name),
+                        "ref": _("%s Final Clear WIP") % (prod.name),
                         "line_ids": [(0, 0, x) for x in move_lines or [] if x],
                     }
                 )
@@ -221,8 +219,6 @@ class MRPProduction(models.Model):
                     prod._prepare_clear_wip_account_line(acc_clear, -wip_balance),
                     prod._prepare_clear_wip_account_line(acc_var, +wip_balance),
                 ]
-                # print("b", acc_clear.display_name, "->", acc_var.display_name, wip_balance)
-                # wip_move = self.env["account.move"].create(
                 wip_move = final_acc_move.copy(
                     {
                         "ref": _("%s Clear WIP") % (prod.name),
@@ -257,10 +253,15 @@ class MRPProduction(models.Model):
         self.action_post_inventory_wip()
         # Run finished product valuation (no raw materials to valuate now)
         res = super().button_mark_done()
-        mfg_done = self  # TODO: ? .filtered(lambda x: x.state == "done")
-        mfg_done._get_tracking_items().process_wip_and_variance(close=True)
-        # Raw Material - clear final WIP and post Variances
-        mfg_done._prepare_clear_wip_journal_entries()
+        mfg_done = self.filtered(lambda x: x.state == "done")
+        if mfg_done:
+            tracking = mfg_done._get_tracking_items()
+            # Ensure all pending WIP is posted
+            tracking.process_wip_and_variance(close=True)
+            # Operations - clear WIP
+            tracking.clear_wip_journal_entries()
+            # Raw Material - clear final WIP and post Variances
+            mfg_done.clear_wip_final()
         return res
 
     def action_cancel(self):

@@ -50,7 +50,6 @@ class AnalyticTrackingItem(models.Model):
         # Only set for raw materials
         if dest_location.valuation_in_account_id:
             accounts["stock_input"] = dest_location.valuation_in_account_id
-            accounts["stock_wip"] = accounts["stock_input"]
         if dest_location.valuation_out_account_id:
             accounts["stock_output"] = dest_location.valuation_out_account_id
         return accounts

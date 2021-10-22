@@ -21,11 +21,8 @@ class StockMove(models.Model):
 
     def _prepare_tracking_item_values(self):
         analytic = self.raw_material_production_id.analytic_account_id
-        planned_qty = 0.0
-        if self.raw_material_production_id.state in ("draft", "confirmed"):
-            planned_qty = sum(
-                self.raw_material_production_id.mapped("move_raw_ids.product_uom_qty")
-            )
+        state = self.raw_material_production_id.state
+        planned_qty = self.product_uom_qty if state in ("draft", "confirmed") else 0.0
         return (
             {
                 "analytic_id": analytic.id,
