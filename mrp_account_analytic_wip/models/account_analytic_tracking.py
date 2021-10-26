@@ -64,18 +64,19 @@ class AnalyticTrackingItem(models.Model):
             unit_cost = self.workorder_id.workcenter_id.costs_hour
         return unit_cost
 
-    def _get_tracking_item(self):
-        """
-        Locate existing Tracking Item.
-        - For Stock Moves, locate by Product, and multtiple lines
-          can match the same Tracking Item.
-        - For Work Order, locate by Work Order
-        """
-        tracking = super()._get_tracking_item()
-        if self.stock_move_id:
-            tracking = tracking.filtered(
-                lambda x: x.stock_move_id == self.stock_move_id
-            )
-        if self.workorder_id:
-            tracking = tracking.filtered(lambda x: x.workorder_id == self.workorder_id)
-        return tracking
+    # FIXME remove dead code
+    # def _get_tracking_item(self):
+    #     """
+    #     Locate existing Tracking Item.
+    #     - For Stock Moves, locate by Product, and multtiple lines
+    #       can match the same Tracking Item.
+    #     - For Work Order, locate by Work Order
+    #     """
+    #     tracking = super()._get_tracking_item()
+    #     if self.stock_move_id:
+    #         tracking = tracking.filtered(
+    #             lambda x: x.stock_move_id == self.stock_move_id
+    #         )
+    #     if self.workorder_id:
+    #         tracking = tracking.filtered(lambda x: x.workorder_id == self.workorder_id)
+    #     return tracking

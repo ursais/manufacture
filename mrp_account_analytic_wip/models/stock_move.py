@@ -34,14 +34,6 @@ class StockMove(models.Model):
             else {}
         )
 
-    def _get_tracking_item(self):
-        self.ensure_one()
-        all_tracking = self.raw_material_production_id.analytic_tracking_item_ids
-        tracking = all_tracking.filtered(
-            lambda x: x.stock_move_id and x.product_id == self.product_id
-        )
-        return tracking
-
     def _get_set_tracking_item(self):
         """
         Given an Analytic Item,
@@ -49,7 +41,10 @@ class StockMove(models.Model):
         and set it on the record.
         If the (parent level) Tracking Item does not exist, it is created.
         """
-        tracking = self._get_tracking_item()
+        all_tracking = self.raw_material_production_id.analytic_tracking_item_ids
+        tracking = all_tracking.filtered(
+            lambda x: x.stock_move_id and x.product_id == self.product_id
+        )
         if tracking:
             self.analytic_tracking_item_id = tracking
         else:
