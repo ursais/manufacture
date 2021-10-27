@@ -37,6 +37,16 @@ class AnalyticTrackingItem(models.Model):
                 tracking.product_id.display_name or "",
             )
 
+    def _prepare_account_move_head(self, journal, move_lines=None, ref=None):
+        """
+        Preserve related Stock Move, needed to compute the "Is WIP" flag on J.Items.
+        """
+        res = super()._prepare_account_move_head(
+            journal, move_lines=move_lines, ref=ref
+        )
+        res["stock_move_id"] = self.stock_move_id.id
+        return res
+
     def _get_accounting_data_for_valuation(self):
         """
         For raw material stock moves, consider the destination location (Production)
@@ -50,6 +60,7 @@ class AnalyticTrackingItem(models.Model):
         # Only set for raw materials
         if dest_location.valuation_in_account_id:
             accounts["stock_input"] = dest_location.valuation_in_account_id
+            accounts["stock_wip"] = accounts["stock_input"]
         if dest_location.valuation_out_account_id:
             accounts["stock_output"] = dest_location.valuation_out_account_id
         return accounts

@@ -142,7 +142,7 @@ class MRPProduction(models.Model):
         # Note: do not set analytic_account_id,
         # as that triggers a (repeated) Analytic Item
         return {
-            "name": _("Clear WIP %s") % (self.display_name),
+            "ref": _("%s - Clear WIP") % (self.display_name),
             "product_id": self.product_id.id,
             "product_uom_id": self.product_id.uom_id.id,
             "account_id": account.id,
@@ -206,26 +206,27 @@ class MRPProduction(models.Model):
             if move_lines and final_acc_move:
                 wip_move = final_acc_move.copy(
                     {
-                        "ref": _("%s Final Clear WIP") % (prod.name),
-                        "line_ids": [(0, 0, x) for x in move_lines or [] if x],
-                    }
-                )
-                wip_move._post()
-
-            # ... and post the difference to Variances.
-            wip_balance = sum(wip_items.mapped("balance"))
-            if wip_balance and final_acc_move:
-                move_lines = [
-                    prod._prepare_clear_wip_account_line(acc_clear, -wip_balance),
-                    prod._prepare_clear_wip_account_line(acc_var, +wip_balance),
-                ]
-                wip_move = final_acc_move.copy(
-                    {
                         "ref": _("%s Clear WIP") % (prod.name),
                         "line_ids": [(0, 0, x) for x in move_lines or [] if x],
                     }
                 )
                 wip_move._post()
+
+            # FIXME: remove dead code
+            # ... and post the difference to Variances.
+            # wip_balance = sum(wip_items.mapped("balance"))
+            # if wip_balance and final_acc_move:
+            #     move_lines = [
+            #         prod._prepare_clear_wip_account_line(acc_clear, -wip_balance),
+            #         prod._prepare_clear_wip_account_line(acc_var, +wip_balance),
+            #     ]
+            #     wip_move = final_acc_move.copy(
+            #         {
+            #             "ref": _("%s Clear WIP") % (prod.name),
+            #             "line_ids": [(0, 0, x) for x in move_lines or [] if x],
+            #         }
+            #     )
+            #     wip_move._post()
 
     def action_view_analytic_tracking_items(self):
         self.ensure_one()
