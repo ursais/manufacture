@@ -79,7 +79,6 @@ class MRPProduction(models.Model):
         """
         # _post_inventory will post missing raw material WIP and the final product
         super()._post_inventory(cancel_backorder=cancel_backorder)
-
         for order in self:
             # Correct consume_line_ids, that otherwise will miss
             # the early consumed raw materials
@@ -88,10 +87,6 @@ class MRPProduction(models.Model):
             order.move_finished_ids.move_line_ids.consume_line_ids = [
                 (6, 0, consume_move_lines.ids)
             ]
-            # TODO DROP
-            # Clear the WIP Balance
-            # order.analytic_tracking_item_ids.clear_wip_journal_entries()
-
         return True
 
     def action_post_inventory_wip(self, cancel_backorder=False):
@@ -100,8 +95,8 @@ class MRPProduction(models.Model):
         during MO execution, rather than only at MO completion.
         Triggered by button click, not automatic on raw material consumption.
         TODO: have an action available on MO list view
-        TODO: run through a daily cron
         """
+        # TODO: optimize not processing MOs withnothing to do?
         for order in self:
             # Raw Material Consumption, closely following _post_inventory()
             moves_not_to_do = order.move_raw_ids.filtered(lambda x: x.state == "done")
@@ -186,7 +181,7 @@ class MRPProduction(models.Model):
             for acc_wip in accounts_wip:
                 wip_acc_items = wip_items.filtered(lambda x: x.account_id == acc_wip)
                 wip_acc_bal = sum(wip_acc_items.mapped("balance"))
-                # Should we do separate Journal Entry for each WIp account?
+                # Should we do separate Journal Entry for each WIP account?
                 if wip_acc_bal:
                     move_lines.extend(
                         [
@@ -212,21 +207,12 @@ class MRPProduction(models.Model):
                 )
                 wip_move._post()
 
-            # FIXME: remove dead code
-            # ... and post the difference to Variances.
-            # wip_balance = sum(wip_items.mapped("balance"))
-            # if wip_balance and final_acc_move:
-            #     move_lines = [
-            #         prod._prepare_clear_wip_account_line(acc_clear, -wip_balance),
-            #         prod._prepare_clear_wip_account_line(acc_var, +wip_balance),
-            #     ]
-            #     wip_move = final_acc_move.copy(
-            #         {
-            #             "ref": _("%s Clear WIP") % (prod.name),
-            #             "line_ids": [(0, 0, x) for x in move_lines or [] if x],
-            #         }
-            #     )
-            #     wip_move._post()
+    def _cron_process_wip_and_variance(self):
+        items = self.env["mrp.variance"].search(
+            [("state", "in", ["progress", "to_close"])]
+        )
+        items.action_post_inventory_wip()
+        super()._cron_process_wip_and_variance()
 
     def action_view_analytic_tracking_items(self):
         self.ensure_one()
