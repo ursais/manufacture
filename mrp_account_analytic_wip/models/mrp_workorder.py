@@ -11,14 +11,18 @@ class MRPWorkOrder(models.Model):
     analytic_tracking_item_id = fields.Many2one(
         "account.analytic.tracking.item", string="Tracking Item", copy=False
     )
+    # Operations added after MO confirmation have expected qty zero
+    duration_expected = fields.Float(default=0.0)
 
     def _prepare_tracking_item_values(self):
         analytic = self.production_id.analytic_account_id
+        state = self.production_id.state
+        planned_qty = self.duration_expected / 60 if state == "draft" else 0.0
         return analytic and {
             "analytic_id": analytic.id,
             "product_id": self.workcenter_id.analytic_product_id.id,
             "workorder_id": self.id,
-            "planned_qty": self.duration_expected / 60,
+            "planned_qty": planned_qty,
         }
 
     def _get_tracking_item(self):

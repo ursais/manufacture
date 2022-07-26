@@ -8,6 +8,15 @@ from odoo import api, fields, models
 class StockMove(models.Model):
     _inherit = "stock.move"
 
+    @api.depends("raw_material_production_id.qty_producing", "product_uom_qty", "product_uom")
+    def _compute_should_consume_qty(self):
+        super()._compute_should_consume_qty()
+        # Components added after MO confirmation have expected qty zero
+        for move in self:
+            mo = move.raw_material_production_id
+            if mo.state != "draft":
+                move.should_consume_qty = 0
+
     # Copy Tracking item, so that when a move is split,
     # it still related to the same Tracking Item
     analytic_tracking_item_id = fields.Many2one(
@@ -21,8 +30,8 @@ class StockMove(models.Model):
 
     def _prepare_tracking_item_values(self):
         analytic = self.raw_material_production_id.analytic_account_id
-        state = self.raw_material_production_id.state
-        planned_qty = self.product_uom_qty if state in ("draft", "confirmed") else 0.0
+        state = self.production_id.state
+        planned_qty = self.product_uom_qty if state == "draft" else 0.0
         return (
             {
                 "analytic_id": analytic.id,
