@@ -8,6 +8,14 @@
         />
         <field name="arch" type="xml">
 
+            <field name="duration_expected" position="before">
+                <field name="is_locked" invisible="True" />
+            </field>
+            <field name="duration_expected" position="attributes">
+                <attribute
+                    name="attrs"
+                >{'readonly': [('is_locked', '=', True), ('production_state', 'not in', ['draft'])]}</attribute>
+            </field>
             <!-- Highlight expected durations (populated from the BOM) -->
             <field name="name" position="attributes">
                 <attribute name="decoration-bf">duration_expected</attribute>

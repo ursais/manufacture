@@ -231,8 +231,8 @@ class MRPProduction(models.Model):
         just after MO confirmation.
         """
         res = super().action_confirm()
-        self.mapped("move_raw_ids").populate_tracking_items()
-        self.mapped("workorder_ids").populate_tracking_items()
+        self.mapped("move_raw_ids").populate_tracking_items(set_planned=True)
+        self.mapped("workorder_ids").populate_tracking_items(set_planned=True)
         return res
 
     def button_mark_done(self):

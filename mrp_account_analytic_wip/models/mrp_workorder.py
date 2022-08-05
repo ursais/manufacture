@@ -13,11 +13,12 @@ class MRPWorkOrder(models.Model):
     )
     # Operations added after MO confirmation have expected qty zero
     duration_expected = fields.Float(default=0.0)
+    # Make MO lock status available for views
+    is_locked = fields.Boolean(related="production_id.is_locked")
 
     def _prepare_tracking_item_values(self):
         analytic = self.production_id.analytic_account_id
-        state = self.production_id.state
-        planned_qty = self.duration_expected / 60 if state == "draft" else 0.0
+        planned_qty = self.duration_expected / 60
         return analytic and {
             "analytic_id": analytic.id,
             "product_id": self.workcenter_id.analytic_product_id.id,
@@ -25,47 +26,33 @@ class MRPWorkOrder(models.Model):
             "planned_qty": planned_qty,
         }
 
-    def _get_tracking_item(self):
-        self.ensure_one()
-        all_tracking = self.production_id.analytic_tracking_item_ids
-        tracking = all_tracking.filtered(lambda x: x.workorder_id == self)
-        return tracking
-
-    def _get_set_tracking_item(self):
+    def populate_tracking_items(self, set_planned=False):
         """
-        Given an Analytic Item,
-        locate the corresponding Tracking Item
-        and set it on the record.
-        If the (parent level) Tracking Item does not exist, it is created.
+        When creating a Work Order link it to a Tracking Item.
+        It may be an existing Tracking Item,
+        or a new one my be created if it doesn't exist yet.
         """
-        tracking = self._get_tracking_item()
-        if tracking:
-            self.analytic_tracking_item_id = tracking
-        else:
-            vals = self._prepare_tracking_item_values()
-            if vals:
-                tracking = self.env["account.analytic.tracking.item"].create(vals)
-                self.analytic_tracking_item_id = tracking
-        return tracking
-
-    def populate_tracking_items(self):
-        """
-        When creating an Analytic Item,
-        link it to a Tracking Item, the may have to be created if it doesn't exist.
-        """
+        TrackingItem = self.env["account.analytic.tracking.item"]
         to_populate = self.filtered(
-            lambda x: not x.analytic_tracking_item_id
-            and x.production_id.analytic_account_id
+            lambda x: x.production_id.analytic_account_id
             and x.production_id.state not in ("draft", "done", "cancel")
         )
+        all_tracking = to_populate.production_id.analytic_tracking_item_ids
         for item in to_populate:
-            item._get_set_tracking_item()
+            tracking = all_tracking.filtered(lambda x: x.workorder_id == self)
+            vals = item._prepare_tracking_item_values()
+            not set_planned and vals.pop("planned_qty")
+            if tracking:
+                tracking.write(vals)
+            else:
+                tracking = TrackingItem.create(vals)
+            self.analytic_tracking_item_id = tracking
 
     @api.model
     def create(self, vals):
-        new_workorders = super().create(vals)
-        new_workorders.populate_tracking_items()
-        return new_workorders
+        new_workorder = super().create(vals)
+        new_workorder.populate_tracking_items()
+        return new_workorder
 
 
 class MrpWorkcenterProductivity(models.Model):
@@ -73,8 +60,5 @@ class MrpWorkcenterProductivity(models.Model):
 
     def _prepare_mrp_workorder_analytic_item(self):
         values = super()._prepare_mrp_workorder_analytic_item()
-        new_values = {
-            "product_id": self.workcenter_id.analytic_product_id.id,
-        }
-        values.update(new_values)
+        values["product_id"] = self.workcenter_id.analytic_product_id.id
         return values

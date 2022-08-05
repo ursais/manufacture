@@ -8,7 +8,9 @@ from odoo import api, fields, models
 class StockMove(models.Model):
     _inherit = "stock.move"
 
-    @api.depends("raw_material_production_id.qty_producing", "product_uom_qty", "product_uom")
+    @api.depends(
+        "raw_material_production_id.qty_producing", "product_uom_qty", "product_uom"
+    )
     def _compute_should_consume_qty(self):
         super()._compute_should_consume_qty()
         # Components added after MO confirmation have expected qty zero
@@ -30,51 +32,36 @@ class StockMove(models.Model):
 
     def _prepare_tracking_item_values(self):
         analytic = self.raw_material_production_id.analytic_account_id
-        state = self.production_id.state
-        planned_qty = self.product_uom_qty if state == "draft" else 0.0
-        return (
-            {
-                "analytic_id": analytic.id,
-                "product_id": self.product_id.id,
-                "stock_move_id": self.id,
-                "planned_qty": planned_qty,
-            }
-            if analytic
-            else {}
-        )
+        planned_qty = self.product_uom_qty
+        return {
+            "analytic_id": analytic.id,
+            "product_id": self.product_id.id,
+            "stock_move_id": self.id,
+            "planned_qty": planned_qty,
+        }
 
-    def _get_set_tracking_item(self):
-        """
-        Given an Analytic Item,
-        locate the corresponding Tracking Item
-        and set it on the record.
-        If the (parent level) Tracking Item does not exist, it is created.
-        """
-        all_tracking = self.raw_material_production_id.analytic_tracking_item_ids
-        tracking = all_tracking.filtered(
-            lambda x: x.stock_move_id and x.product_id == self.product_id
-        )
-        if tracking:
-            self.analytic_tracking_item_id = tracking
-        else:
-            vals = self._prepare_tracking_item_values()
-            if vals:
-                tracking = self.env["account.analytic.tracking.item"].create(vals)
-                self.analytic_tracking_item_id = tracking
-        return tracking
-
-    def populate_tracking_items(self):
+    def populate_tracking_items(self, set_planned=False):
         """
         When creating an Analytic Item,
         link it to a Tracking Item, the may have to be created if it doesn't exist.
         """
+        TrackingItem = self.env["account.analytic.tracking.item"]
         to_populate = self.filtered(
-            lambda x: not x.analytic_tracking_item_id
-            and x.raw_material_production_id.analytic_account_id
+            lambda x: x.raw_material_production_id.analytic_account_id
             and x.raw_material_production_id.state not in ("draft", "done", "cancel")
         )
+        all_tracking = to_populate.raw_material_production_id.analytic_tracking_item_ids
         for item in to_populate:
-            item._get_set_tracking_item()
+            tracking = all_tracking.filtered(
+                lambda x: x.stock_move_id and x.product_id == item.product_id
+            )
+            vals = item._prepare_tracking_item_values()
+            not set_planned and vals.pop("planned_qty")
+            if tracking:
+                tracking.write(vals)
+            else:
+                tracking = TrackingItem.create(vals)
+            item.analytic_tracking_item_id = tracking
 
     @api.model
     def create(self, vals):
