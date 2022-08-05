@@ -36,6 +36,20 @@
                 </button>
 
             </div>
+            <!-- Highlight expected quantities (populated from the BOM) -->
+            <xpath
+                expr="//page[@name='components']/field/tree/field[@name='product_id']"
+                position="attributes"
+            >
+                <attribute name="decoration-bf">product_uom_qty</attribute>
+            </xpath>
+            <xpath
+                expr="//page[@name='components']/field/tree/field[@name='product_uom_qty']"
+                position="attributes"
+            >
+                <attribute name="decoration-bf">product_uom_qty</attribute>
+            </xpath>
+
         </field>
     </record>
 </odoo>

@@ -13,6 +13,7 @@
     "data": [
         "views/mrp_production_views.xml",
         "views/mrp_workcenter_view.xml",
+        "views/mrp_workorder_view.xml",
         "views/stock_location.xml",
     ],
     "demo": ["demo/product_demo.xml"],

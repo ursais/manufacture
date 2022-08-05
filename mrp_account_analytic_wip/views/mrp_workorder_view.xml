@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="mrp_workorder_form_view_custom" model="ir.ui.view">
+        <field name="model">mrp.workorder</field>
+        <field
+            name="inherit_id"
+            ref="mrp.mrp_production_workorder_tree_editable_view"
+        />
+        <field name="arch" type="xml">
+
+            <!-- Highlight expected durations (populated from the BOM) -->
+            <field name="name" position="attributes">
+                <attribute name="decoration-bf">duration_expected</attribute>
+            </field>
+            <field name="duration_expected" position="attributes">
+                <attribute name="decoration-bf">duration_expected</attribute>
+            </field>
+
+        </field>
+    </record>
+</odoo>
