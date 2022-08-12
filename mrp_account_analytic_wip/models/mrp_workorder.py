@@ -46,7 +46,7 @@ class MRPWorkOrder(models.Model):
                 tracking.write(vals)
             else:
                 tracking = TrackingItem.create(vals)
-            self.analytic_tracking_item_id = tracking
+            item.analytic_tracking_item_id = tracking
 
     @api.model
     def create(self, vals):
