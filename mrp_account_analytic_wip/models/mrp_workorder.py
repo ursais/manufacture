@@ -58,7 +58,7 @@ class MRPWorkOrder(models.Model):
 class MrpWorkcenterProductivity(models.Model):
     _inherit = "mrp.workcenter.productivity"
 
-    def _prepare_mrp_workorder_analytic_item(self):
-        values = super()._prepare_mrp_workorder_analytic_item()
+    def _prepare_mrp_workorder_analytic_item(self, duration):
+        values = super()._prepare_mrp_workorder_analytic_item(duration=duration)
         values["product_id"] = self.workcenter_id.analytic_product_id.id
         return values

@@ -25,8 +25,8 @@ class StockMove(models.Model):
         "account.analytic.tracking.item", string="Tracking Item", copy=True
     )
 
-    def _prepare_mrp_raw_material_analytic_line(self):
-        values = super()._prepare_mrp_raw_material_analytic_line()
+    def _prepare_mrp_raw_material_analytic_line(self, qty):
+        values = super()._prepare_mrp_raw_material_analytic_line(qty=qty)
         values["analytic_tracking_item_id"] = self.analytic_tracking_item_id.id
         return values
 
