@@ -143,6 +143,7 @@ class MRPProduction(models.Model):
             "account_id": account.id,
             "debit": amount if amount > 0.0 else 0.0,
             "credit": -amount if amount < 0.0 else 0.0,
+            "analytic_account_id": self.analytic_account_id.id,
         }
 
     def clear_wip_final(self):
