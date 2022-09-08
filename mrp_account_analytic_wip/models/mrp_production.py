@@ -40,11 +40,17 @@ class MRPProduction(models.Model):
         """
         super()._compute_state()
         for production in self:
-            if (
-                not all(move.state == "done" for move in production.move_finished_ids)
-                and production.state == "done"
-            ):
-                production.state = "to_close"
+            all_finished_moves_done = all(
+                move.state == "done" for move in production.move_finished_ids
+            )
+            all_workorders_done = not production.workorder_ids or all(
+                wo.state in ("done", "cancel") for wo in production.workorder_ids
+            )
+            if production.state == "done" and not all_finished_moves_done:
+                if all_workorders_done:
+                    production.state = "to_close"
+                else:
+                    production.state = "progress"
 
     def _get_tracking_items(self):
         """
@@ -103,9 +109,7 @@ class MRPProduction(models.Model):
             moves_to_do = order.move_raw_ids.filtered(
                 lambda x: x.state not in ("done", "cancel")
             )
-            for move in moves_to_do.filtered(
-                lambda m: m.product_qty == 0.0 and m.quantity_done > 0
-            ):
+            for move in moves_to_do:
                 move.product_uom_qty = move.quantity_done
             # MRP do not merge move, catch the result of _action_done in order
             # to get extra moves.
