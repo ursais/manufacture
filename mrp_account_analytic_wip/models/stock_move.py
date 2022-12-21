@@ -89,7 +89,7 @@ class StockMove(models.Model):
         all_tracking = to_populate.raw_material_production_id.analytic_tracking_item_ids
         for item in to_populate:
             tracking = all_tracking.filtered(
-                lambda x: x.stock_move_id and x.product_id == item.product_id
+                lambda x: x.stock_move_id == item and x.product_id == item.product_id
             )
             vals = item._prepare_tracking_item_values()
             not set_planned and vals.pop("planned_qty")
