@@ -264,7 +264,8 @@ class MRPProduction(models.Model):
             # Ensure all pending WIP is posted
             tracking.process_wip_and_variance(close=True)
             # Operations - clear WIP
-            tracking.clear_wip_journal_entries()
+            if mfg_done.product_id.cost_method !='fifo':
+                tracking.clear_wip_journal_entries()
             # Raw Material - clear final WIP and post Variances
             mfg_done.clear_wip_final()
         return res
