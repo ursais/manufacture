@@ -320,3 +320,62 @@ class MRPProduction(models.Model):
             for workorder in production.workorder_ids:
                 workorder.duration_planned = workorder.duration_expected
         return res
+
+    def _check_sn_uniqueness(self): 
+        """ Alert the user if the serial number as already been consumed/produced 
+            WIP Module is also creating other JE with Virtual / Production Location.
+            We need to bypass the check for Current Production, there can be multiple moves with Virtual Production for same SN in WIP module.
+        """
+        if self.product_tracking == 'serial' and self.lot_producing_id:
+            if self._is_finished_sn_already_produced(self.lot_producing_id):
+                raise UserError(_('This serial number for product %s has already been produced', self.product_id.name))
+
+        for move in self.move_finished_ids:
+            if move.has_tracking != 'serial' or move.product_id == self.product_id:
+                continue
+            for move_line in move.move_line_ids:
+                if self._is_finished_sn_already_produced(move_line.lot_id, excluded_sml=move_line):
+                    raise UserError(_('The serial number %(number)s used for byproduct %(product_name)s has already been produced',
+                                      number=move_line.lot_id.name, product_name=move_line.product_id.name))
+
+        for move in self.move_raw_ids:
+            if move.has_tracking != 'serial':
+                continue
+            for move_line in move.move_line_ids:
+                if float_is_zero(move_line.qty_done, precision_rounding=move_line.product_uom_id.rounding):
+                    continue
+                message = _('The serial number %(number)s used for component %(component)s has already been consumed',
+                    number=move_line.lot_id.name,
+                    component=move_line.product_id.name)
+                co_prod_move_lines = self.move_raw_ids.move_line_ids
+
+                # Check presence of same sn in previous productions
+                duplicates = self.env['stock.move.line'].search_count([
+                    ('lot_id', '=', move_line.lot_id.id),
+                    ('qty_done', '=', 1),
+                    ('state', '=', 'done'),
+                    ('location_dest_id.usage', '=', 'production'),
+                    ('production_id', '!=', False),
+                    ('production_id', '!=',self.id)  #In this core odoo method only this change has been added.
+                ])
+                if duplicates:
+                    # Maybe some move lines have been compensated by unbuild
+                    duplicates_returned = move.product_id._count_returned_sn_products(move_line.lot_id)
+                    removed = self.env['stock.move.line'].search_count([
+                        ('lot_id', '=', move_line.lot_id.id),
+                        ('state', '=', 'done'),
+                        ('location_dest_id.scrap_location', '=', True)
+                    ])
+                    unremoved = self.env['stock.move.line'].search_count([
+                        ('lot_id', '=', move_line.lot_id.id),
+                        ('state', '=', 'done'),
+                        ('location_id.scrap_location', '=', True),
+                        ('location_dest_id.scrap_location', '=', False),
+                    ])
+                    # Either removed or unbuild
+                    if not ((duplicates_returned or removed) and duplicates - duplicates_returned - removed + unremoved == 0):
+                        raise UserError(message)
+                # Check presence of same sn in current production
+                duplicates = co_prod_move_lines.filtered(lambda ml: ml.qty_done and ml.lot_id == move_line.lot_id) - move_line
+                if duplicates:
+                    raise UserError(message)
