@@ -251,10 +251,14 @@ class MRPProduction(models.Model):
         Note that in some cases, the Analytic Account might be set
         just after MO confirmation.
         """
+        bom_id = self.bom_id
+        self.bom_id = self.product_id.cost_reference_bom_id
         res = super().action_confirm()
-        self.mapped("move_raw_ids").populate_tracking_items(set_planned=True)
-        self.mapped("workorder_ids").populate_tracking_items(set_planned=True)
+        self.bom_id = bom_id
+        # self.mapped("move_raw_ids").populate_tracking_items(set_planned=True)
+        # self.mapped("workorder_ids").populate_tracking_items(set_planned=True)
         return res
+
 
     def button_mark_done(self):
         # Post all pending WIP and then generate MO close JEs
