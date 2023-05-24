@@ -18,4 +18,4 @@ class ProductProduct(models.Model):
                 ('byproduct_ids.product_id', '=', self.id)],
                 order='sequence, product_id, id', limit=1)
                )
-        self.cost_reference_bom = bom
+        self.cost_reference_bom_id = bom.id
