@@ -69,7 +69,8 @@ class StockMove(models.Model):
 
     def _prepare_tracking_item_values(self):
         analytic = self.raw_material_production_id.analytic_account_id
-        planned_qty = self.qty_planned
+        cost_reference_bom_id = self.bom_line_id.bom_id.product_tmpl_id.cost_reference_bom_id
+        planned_qty = cost_reference_bom_id.bom_line_ids.filtered(lambda x: x.product_id == self.product_id).product_qty
         return {
             "analytic_id": analytic.id,
             "product_id": self.product_id.id,

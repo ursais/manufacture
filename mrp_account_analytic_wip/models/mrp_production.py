@@ -251,12 +251,9 @@ class MRPProduction(models.Model):
         Note that in some cases, the Analytic Account might be set
         just after MO confirmation.
         """
-        bom_id = self.bom_id
-        self.bom_id = self.product_id.cost_reference_bom_id
         res = super().action_confirm()
-        self.bom_id = bom_id
-        # self.mapped("move_raw_ids").populate_tracking_items(set_planned=True)
-        # self.mapped("workorder_ids").populate_tracking_items(set_planned=True)
+        self.mapped("move_raw_ids").populate_tracking_items(set_planned=True)
+        self.mapped("workorder_ids").populate_tracking_items(set_planned=True)
         return res
 
 
@@ -305,20 +302,6 @@ class MRPProduction(models.Model):
             confirmed_mos.move_raw_ids.populate_tracking_items()
             confirmed_mos.workorder_ids.populate_tracking_items()
         return True
-
-    def _get_move_raw_values(
-        self,
-        product_id,
-        product_uom_qty,
-        product_uom,
-        operation_id=False,
-        bom_line=False,
-    ):
-        vals = super()._get_move_raw_values(
-            product_id, product_uom_qty, product_uom, operation_id, bom_line
-        )
-        vals.update({"qty_planned": vals.get("product_uom_qty")})
-        return vals
 
     def _create_workorder(self):
         res = super()._create_workorder()
