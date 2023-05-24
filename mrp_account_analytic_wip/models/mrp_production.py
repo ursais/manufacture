@@ -303,9 +303,4 @@ class MRPProduction(models.Model):
             confirmed_mos.workorder_ids.populate_tracking_items()
         return True
 
-    def _create_workorder(self):
-        res = super()._create_workorder()
-        for production in self:
-            for workorder in production.workorder_ids:
-                workorder.duration_planned = workorder.duration_expected
-        return res
+

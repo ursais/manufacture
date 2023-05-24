@@ -19,7 +19,9 @@ class MRPWorkOrder(models.Model):
 
     def _prepare_tracking_item_values(self):
         analytic = self.production_id.analytic_account_id
-        planned_qty = self.duration_planned / 60
+        cost_reference_bom_id = self.production_bom_id.product_tmpl_id.cost_reference_bom_id
+        planned_qty = cost_reference_bom_id.operation_ids.filtered(lambda x: x.workcenter_id == self.workcenter_id).time_cycle/60
+
         return analytic and {
             "analytic_id": analytic.id,
             "product_id": self.workcenter_id.analytic_product_id.id,
