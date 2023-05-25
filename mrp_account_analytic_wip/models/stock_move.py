@@ -69,15 +69,13 @@ class StockMove(models.Model):
 
     def _prepare_tracking_item_values(self):
         analytic = self.raw_material_production_id.analytic_account_id
-        planned_qty = self.qty_planned
         return {
             "analytic_id": analytic.id,
             "product_id": self.product_id.id,
             "stock_move_id": self.id,
-            "planned_qty": planned_qty,
         }
 
-    def populate_tracking_items(self, set_planned=False):
+    def populate_tracking_items(self):
         """
         When creating an Analytic Item,
         link it to a Tracking Item, the may have to be created if it doesn't exist.
@@ -90,10 +88,9 @@ class StockMove(models.Model):
         all_tracking = to_populate.raw_material_production_id.analytic_tracking_item_ids
         for item in to_populate:
             tracking = all_tracking.filtered(
-                lambda x: x.stock_move_id and x.product_id == item.product_id
+                lambda x: x.product_id == item.product_id  # and x.stock_move_id
             )
             vals = item._prepare_tracking_item_values()
-            not set_planned and vals.pop("planned_qty")
             if tracking:
                 tracking.write(vals)
             else:
