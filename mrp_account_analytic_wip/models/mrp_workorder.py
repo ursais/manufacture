@@ -19,17 +19,14 @@ class MRPWorkOrder(models.Model):
 
     def _prepare_tracking_item_values(self):
         analytic = self.production_id.analytic_account_id
-        cost_reference_bom_id = self.production_bom_id.product_tmpl_id.cost_reference_bom_id
-        planned_qty = cost_reference_bom_id.operation_ids.filtered(lambda x: x.workcenter_id == self.workcenter_id).time_cycle/60
 
         return analytic and {
             "analytic_id": analytic.id,
             "product_id": self.workcenter_id.analytic_product_id.id,
             "workorder_id": self.id,
-            "planned_qty": planned_qty,
         }
 
-    def populate_tracking_items(self, set_planned=False):
+    def populate_tracking_items(self):
         """
         When creating a Work Order link it to a Tracking Item.
         It may be an existing Tracking Item,
@@ -44,7 +41,6 @@ class MRPWorkOrder(models.Model):
         for item in to_populate:
             tracking = all_tracking.filtered(lambda x: x.workorder_id == self)[:1]
             vals = item._prepare_tracking_item_values()
-            not set_planned and vals.pop("planned_qty")
             if tracking:
                 tracking.write(vals)
             else:
