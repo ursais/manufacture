@@ -4,9 +4,9 @@
 from odoo import fields, models
 
 
-class ProductTemplate(models.Model):
+class ProductProduct(models.Model):
 
-    _inherit = 'product.template'
+    _inherit = 'product.product'
 
     cost_reference_bom_id = fields.Many2one("mrp.bom", "Cost Reference BoM", compute="_compute_cost_reference_bom")
 
@@ -14,7 +14,11 @@ class ProductTemplate(models.Model):
         # bom calculation inspired on mrp_account\..\product.py _set_price_from_bom method
         self.ensure_one()
         BoM = self.env['mrp.bom']
-        bom = (BoM.search([("product_tmpl_id", "=", self.id)], order='sequence, product_id, id', limit=1)
+        bom = (BoM.search(["|",
+                           ("product_id", "=", self.id),
+                           ("product_tmpl_id", "=", self.product_tmpl_id.id)
+                           ],
+                          order='sequence, product_id, id', limit=1)
                or BoM.search([
                 ('byproduct_ids.product_id', '=', self.id)],
                 order='sequence, product_id, id', limit=1)

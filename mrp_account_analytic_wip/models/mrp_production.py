@@ -11,6 +11,11 @@ _logger = logging.getLogger(__name__)
 class MRPProduction(models.Model):
     _inherit = "mrp.production"
 
+    bom_analytic_tracking_item_ids = fields.Many2many(
+        "account.analytic.tracking.item",
+        string="Tracking Items",
+    )
+
     analytic_tracking_item_ids = fields.Many2many(
         "account.analytic.tracking.item",
         string="Tracking Items",
@@ -58,7 +63,8 @@ class MRPProduction(models.Model):
         Returns a recordset with the related Ttacking Items
         """
         return (
-            self.mapped("move_raw_ids.analytic_tracking_item_id")
+            self.bom_analytic_tracking_item_ids
+            | self.mapped("move_raw_ids.analytic_tracking_item_id")
             | self.mapped("workorder_ids.analytic_tracking_item_id")
             | self.mapped("workorder_ids.analytic_tracking_item_id.child_ids")
         )
@@ -241,7 +247,7 @@ class MRPProduction(models.Model):
             "res_model": "account.analytic.tracking.item",
             "type": "ir.actions.act_window",
             "name": _("%s Tracking Items") % self.name,
-            "domain": [("id", "in", self._get_tracking_items().ids)],
+            "domain": [("id", "in", self.analytic_tracking_item_ids.ids)],
             "view_mode": "tree,form",
         }
 
@@ -252,10 +258,53 @@ class MRPProduction(models.Model):
         just after MO confirmation.
         """
         res = super().action_confirm()
-        self.mapped("move_raw_ids").populate_tracking_items(set_planned=True)
-        self.mapped("workorder_ids").populate_tracking_items(set_planned=True)
+        self.mapped("move_raw_ids").populate_tracking_items()
+        self.mapped("workorder_ids").populate_tracking_items()
+        reference_bom_id = self.product_id.cost_reference_bom_id
+        self._create_bom_raw_tracking_items(reference_bom_id)
+        self._create_bom_ops_tracking_items(reference_bom_id)
         return res
 
+    def _prepare_bom_raw_tracking_items(self, item):
+        analytic = self.analytic_account_id
+        return({
+                    "analytic_id": analytic.id,
+                    "product_id": item.product_id.id,
+                    "planned_qty": item.product_qty,
+            })
+
+    def _create_bom_raw_tracking_items(self, reference_bom_id):
+        """
+        When creating a Raw Material Analytic Item,
+        link it to a BoM Raw Tracking Item, that may have to be created if it doesn't exist.
+        """
+        self._create_bom_tracking_items(reference_bom_id.bom_line_ids, self._prepare_bom_raw_tracking_items)
+
+    def _prepare_bom_ops_tracking_items(self, item):
+        analytic = self.analytic_account_id
+        return({
+                    "analytic_id": analytic.id,
+                    "product_id": item.workcenter_id.analytic_product_id.id,
+                    "planned_qty": item.time_cycle / 60,
+            })
+
+    def _create_bom_ops_tracking_items(self, reference_bom_id):
+        """
+        When creating an Operations Analytic Item,
+        link it to a BoM Operations Tracking Item, that may have to be created if it doesn't exist.
+        """
+        self._create_bom_tracking_items(reference_bom_id.operation_ids, self._prepare_bom_ops_tracking_items)
+
+    def _create_bom_tracking_items(self, items, _prepare_bom_tracking_items):
+        self.ensure_one()
+        for item in items:
+            vals = _prepare_bom_tracking_items(item)
+            tracking = self.env["account.analytic.tracking.item"].create(vals)
+            if tracking.product_id not in self.analytic_tracking_item_ids.product_id:
+                self.bom_analytic_tracking_item_ids += tracking
+            else:
+                existing_item = self.analytic_tracking_item_ids.filtered(lambda x: x.product_id == tracking.product_id)
+                existing_item.planned_qty = tracking.planned_qty
 
     def button_mark_done(self):
         # Post all pending WIP and then generate MO close JEs
