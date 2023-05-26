@@ -62,6 +62,7 @@ class AnalyticTrackingItem(models.Model):
         if dest_location.valuation_in_account_id:
             accounts["stock_input"] = dest_location.valuation_in_account_id
             accounts["stock_wip"] = accounts["stock_input"]
+            accounts["stock_variance"] = dest_location.valuation_variance_account_id
         if dest_location.valuation_out_account_id:
             accounts["stock_output"] = dest_location.valuation_out_account_id
         return accounts
