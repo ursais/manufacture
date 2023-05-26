@@ -260,9 +260,10 @@ class MRPProduction(models.Model):
         res = super().action_confirm()
         self.mapped("move_raw_ids").populate_tracking_items()
         self.mapped("workorder_ids").populate_tracking_items()
-        reference_bom_id = self.product_id.cost_reference_bom_id
-        self._create_bom_raw_tracking_items(reference_bom_id)
-        self._create_bom_ops_tracking_items(reference_bom_id)
+        for production in self:
+            reference_bom_id = production.product_id.cost_reference_bom_id
+            production._create_bom_raw_tracking_items(reference_bom_id)
+            production._create_bom_ops_tracking_items(reference_bom_id)
         return res
 
     def _prepare_bom_raw_tracking_items(self, item):
