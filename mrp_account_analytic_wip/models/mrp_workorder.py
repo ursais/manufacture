@@ -19,11 +19,11 @@ class MRPWorkOrder(models.Model):
 
     def _prepare_tracking_item_values(self):
         analytic = self.production_id.analytic_account_id
-
         return analytic and {
             "analytic_id": analytic.id,
             "product_id": self.workcenter_id.analytic_product_id.id,
             "workorder_id": self.id,
+            "requested_qty": self.duration_expected / 60,
         }
 
     def populate_tracking_items(self):
