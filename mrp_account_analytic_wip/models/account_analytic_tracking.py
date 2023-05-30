@@ -61,13 +61,13 @@ class AnalyticTrackingItem(models.Model):
         - "stock_variance": is the Variance account
         """
         accounts = super()._get_accounting_data_for_valuation()
-        dest_location = self.stock_move_id.location_dest_id
+        dest_location = self.stock_move_id.location_dest_id or (self.product_id.type == 'product' and self.product_id.property_stock_production)
         # Only set for raw materials
-        if dest_location.valuation_in_account_id:
+        if dest_location and dest_location.valuation_in_account_id:
             accounts["stock_input"] = dest_location.valuation_in_account_id
             accounts["stock_wip"] = accounts["stock_input"]
             accounts["stock_variance"] = dest_location.valuation_variance_account_id
-        if dest_location.valuation_out_account_id:
+        if dest_location and dest_location.valuation_out_account_id:
             accounts["stock_output"] = dest_location.valuation_out_account_id
         return accounts
 
