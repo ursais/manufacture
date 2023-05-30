@@ -23,7 +23,7 @@ class MRPWorkOrder(models.Model):
             "analytic_id": analytic.id,
             "product_id": self.workcenter_id.analytic_product_id.id,
             "workorder_id": self.id,
-            "requested_qty": self.duration_expected / 60
+            "requested_qty": self.duration_expected / 60,
         }
 
     def populate_tracking_items(self):
