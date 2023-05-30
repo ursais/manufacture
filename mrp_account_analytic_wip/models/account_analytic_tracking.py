@@ -90,7 +90,7 @@ class AnalyticTrackingItem(models.Model):
         "child_ids",
     )
     def _compute_actual_amounts(self):
-        super()._compute_actual_amounts
+        super()._compute_actual_amounts()
         for item in self:
             doing = item.state == "draft"
             remain = max(0, item.requested_amount - item.actual_amount) if doing else 0
@@ -106,7 +106,6 @@ class AnalyticTrackingItem(models.Model):
             if not tracking.requested_amount and not cost_rules:
                 factor = tracking.activity_cost_id.factor or 1.0
                 unit_cost = tracking._get_unit_cost()
-                import pudb; pu.db
                 qty = factor * (tracking.requested_qty or tracking.parent_id.requested_qty)
                 tracking.requested_amount = qty * unit_cost
         return res
