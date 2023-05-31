@@ -83,8 +83,7 @@ class MRPProduction(models.Model):
             )
 
     def _cal_price(self, consumed_moves):
-        """Set a price unit on the finished move according to `consumed_moves`.
-        """
+        """Set a price unit on the finished move according to `consumed_moves`."""
         super(MRPProduction, self)._cal_price(consumed_moves)
         work_center_cost = 0
         finished_move = self.move_finished_ids.filtered(
@@ -184,7 +183,7 @@ class MRPProduction(models.Model):
             "account_id": account.id,
             "debit": amount if amount > 0.0 else 0.0,
             "credit": -amount if amount < 0.0 else 0.0,
-#            "analytic_account_id": self.analytic_account_id.id,
+            #            "analytic_account_id": self.analytic_account_id.id,
         }
 
     def clear_wip_final_old(self):
@@ -274,51 +273,97 @@ class MRPProduction(models.Model):
 
             # clear the standard FP WIP
             for product in prod.move_finished_ids.product_id:
-                move_lines.extend([prod._prepare_clear_wip_account_move_line(product, acc_wip_prod, product.standard_price)])
-
+                move_lines.extend(
+                    [
+                        prod._prepare_clear_wip_account_move_line(
+                            product, acc_wip_prod, product.standard_price
+                        )
+                    ]
+                )
 
             tracking = prod._get_tracking_items()
             for item in tracking:
 
                 # get accounts
                 accounts = item._get_accounting_data_for_valuation()
-                
+
                 # consumed standard items
                 if item.planned_amount > 0 and item.actual_amount > 0:
 
                     # clear out WIP
-                    move_lines.extend([prod._prepare_clear_wip_account_move_line(item.product_id, accounts["stock_wip"], -item.actual_amount)])
+                    move_lines.extend(
+                        [
+                            prod._prepare_clear_wip_account_move_line(
+                                item.product_id,
+                                accounts["stock_wip"],
+                                -item.actual_amount,
+                            )
+                        ]
+                    )
                     # write variance if needed
                     if item.difference_actual_amount:
-                        move_lines.extend([prod._prepare_clear_wip_account_move_line(item.product_id, accounts["stock_variance"], item.difference_actual_amount)])
+                        move_lines.extend(
+                            [
+                                prod._prepare_clear_wip_account_move_line(
+                                    item.product_id,
+                                    accounts["stock_variance"],
+                                    item.difference_actual_amount,
+                                )
+                            ]
+                        )
 
                 # consumed non-standard items
                 elif item.planned_amount == 0 and item.actual_amount > 0:
                     # clear out WIP
                     # credit wip account based on product
-                    move_lines.extend([prod._prepare_clear_wip_account_move_line(item.product_id, accounts["stock_wip"], -item.actual_amount)])
+                    move_lines.extend(
+                        [
+                            prod._prepare_clear_wip_account_move_line(
+                                item.product_id,
+                                accounts["stock_wip"],
+                                -item.actual_amount,
+                            )
+                        ]
+                    )
 
                     # write variance
                     # credit variance account based on product
                     if item.difference_actual_amount:
-                        move_lines.extend([prod._prepare_clear_wip_account_move_line(item.product_id, accounts["stock_variance"], item.difference_actual_amount)])
+                        move_lines.extend(
+                            [
+                                prod._prepare_clear_wip_account_move_line(
+                                    item.product_id,
+                                    accounts["stock_variance"],
+                                    item.difference_actual_amount,
+                                )
+                            ]
+                        )
 
                 # standard items not used on the MO
                 elif item.planned_amount > 0 and item.actual_amount == 0:
                     # credit variance account based on product
                     if item.difference_actual_amount:
-                        move_lines.extend([prod._prepare_clear_wip_account_move_line(item.product_id, accounts["stock_variance"], item.difference_actual_amount)])
+                        move_lines.extend(
+                            [
+                                prod._prepare_clear_wip_account_move_line(
+                                    item.product_id,
+                                    accounts["stock_variance"],
+                                    item.difference_actual_amount,
+                                )
+                            ]
+                        )
 
                 else:
                     continue
 
             if move_lines:
-                je_vals =  tracking[0]._prepare_account_move_head(
-                    accounts.get("stock_journal"), move_lines, "WIP %s" % (prod.display_name)
+                je_vals = tracking[0]._prepare_account_move_head(
+                    accounts.get("stock_journal"),
+                    move_lines,
+                    "WIP %s" % (prod.display_name),
                 )
                 je_new = self.env["account.move"].sudo().create(je_vals)
                 je_new._post()
-
 
     def _cron_process_wip_and_variance(self):
         items = self.env["mrp.variance"].search(
@@ -354,33 +399,38 @@ class MRPProduction(models.Model):
 
     def _prepare_bom_raw_tracking_items(self, item):
         analytic = self.analytic_account_id
-        return({
-                    "analytic_id": analytic.id,
-                    "product_id": item.product_id.id,
-                    "planned_qty": item.product_qty,
-            })
+        return {
+            "analytic_id": analytic.id,
+            "product_id": item.product_id.id,
+            "planned_qty": item.product_qty,
+        }
 
     def _create_bom_raw_tracking_items(self, reference_bom_id):
         """
         When creating a Raw Material Analytic Item,
         link it to a BoM Raw Tracking Item, that may have to be created if it doesn't exist.
         """
-        self._create_bom_tracking_items(reference_bom_id.bom_line_ids, self._prepare_bom_raw_tracking_items)
+        self._create_bom_tracking_items(
+            reference_bom_id.bom_line_ids, self._prepare_bom_raw_tracking_items
+        )
 
     def _prepare_bom_ops_tracking_items(self, item):
         analytic = self.analytic_account_id
-        return({
-                    "analytic_id": analytic.id,
-                    "product_id": item.workcenter_id.analytic_product_id.id,
-                    "planned_qty": item.time_cycle / 60,
-            })
+        return {
+            "analytic_id": analytic.id,
+            "product_id": item.workcenter_id.analytic_product_id.id,
+            "planned_qty": item.time_cycle / 60,
+        }
 
     def _create_bom_ops_tracking_items(self, reference_bom_id):
         """
         When creating an Operations Analytic Item,
-        link it to a BoM Operations Tracking Item, that may have to be created if it doesn't exist.
+        link it to a BoM Operations Tracking Item,
+        that may have to be created if it doesn't exist.
         """
-        self._create_bom_tracking_items(reference_bom_id.operation_ids, self._prepare_bom_ops_tracking_items)
+        self._create_bom_tracking_items(
+            reference_bom_id.operation_ids, self._prepare_bom_ops_tracking_items
+        )
 
     def _create_bom_tracking_items(self, items, _prepare_bom_tracking_items):
         self.ensure_one()
@@ -390,7 +440,9 @@ class MRPProduction(models.Model):
             if tracking.product_id not in self.analytic_tracking_item_ids.product_id:
                 self.bom_analytic_tracking_item_ids += tracking
             else:
-                existing_item = self.analytic_tracking_item_ids.filtered(lambda x: x.product_id == tracking.product_id)
+                existing_item = self.analytic_tracking_item_ids.filtered(
+                    lambda x: x.product_id == tracking.product_id
+                )
                 existing_item.planned_qty = tracking.planned_qty
 
     def button_mark_done(self):
@@ -400,11 +452,11 @@ class MRPProduction(models.Model):
         res = super().button_mark_done()
         mfg_done = self.filtered(lambda x: x.state == "done")
         if mfg_done:
-            tracking = mfg_done._get_tracking_items()
+            mfg_done._get_tracking_items()
             # Ensure all pending WIP is posted
-            #tracking.process_wip_and_variance(close=True)
+            # tracking.process_wip_and_variance(close=True)
             # Operations - clear WIP
-            #tracking.clear_wip_journal_entries()
+            # tracking.clear_wip_journal_entries()
             # Raw Material - clear final WIP and post Variances
             mfg_done.clear_wip_final()
         return res
@@ -438,5 +490,3 @@ class MRPProduction(models.Model):
             confirmed_mos.move_raw_ids.populate_tracking_items()
             confirmed_mos.workorder_ids.populate_tracking_items()
         return True
-
-
