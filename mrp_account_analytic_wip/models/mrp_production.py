@@ -90,6 +90,7 @@ class MRPProduction(models.Model):
                 time_lines = work_order.time_ids.filtered(lambda t: t.date_end and not t.cost_already_recorded)
                 work_center_cost += work_order._cal_cost(times=time_lines)
                 time_lines.write({'cost_already_recorded': True})
+            consumed_moves = self.move_raw_ids
             qty_done = finished_move.product_uom._compute_quantity(
                 finished_move.quantity_done, finished_move.product_id.uom_id)
             extra_cost = self.extra_cost * qty_done
