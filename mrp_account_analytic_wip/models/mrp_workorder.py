@@ -37,7 +37,10 @@ class MRPWorkOrder(models.Model):
             lambda x: x.production_id.analytic_account_id
             and x.production_id.state not in ("draft", "done", "cancel")
         )
-        all_tracking = to_populate.production_id.analytic_tracking_item_ids
+        production_id = to_populate.production_id
+        if production_id.is_post_wip_automatic:
+            production_id.action_post_inventory_wip()
+        all_tracking = production_id.analytic_tracking_item_ids
         for item in to_populate:
             tracking = all_tracking.filtered(lambda x: x.workorder_id == self)[:1]
             vals = item._prepare_tracking_item_values()
