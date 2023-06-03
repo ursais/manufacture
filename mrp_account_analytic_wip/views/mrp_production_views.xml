@@ -53,11 +53,6 @@
                 <field name="qty_planned" invisible="1" />
             </xpath>
 
-            <!-- Don't allow deleting lines, to avoid wrong WIP Planned amounts -->
-            <xpath expr="//field[@name='move_raw_ids']/tree" position="attributes">
-                <attribute name="delete">0</attribute>
-            </xpath>
-
         </field>
     </record>
 </odoo>

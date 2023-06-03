@@ -86,7 +86,10 @@ class StockMove(models.Model):
             lambda x: x.raw_material_production_id.analytic_account_id
             and x.raw_material_production_id.state not in ("draft", "done", "cancel")
         )
-        all_tracking = to_populate.raw_material_production_id.analytic_tracking_item_ids
+        production_id = to_populate.raw_material_production_id
+        if production_id.is_post_wip_automatic:
+            production_id.action_post_inventory_wip()
+        all_tracking = production_id.analytic_tracking_item_ids
         for item in to_populate:
             tracking = all_tracking.filtered(
                 lambda x: x.product_id == item.product_id  # and x.stock_move_id
