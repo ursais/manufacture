@@ -40,9 +40,9 @@ class AnalyticTrackingItem(models.Model):
             workorder = tracking.workorder_id
             tracking.name = "{}{} / {} / {}".format(
                 "-> " if tracking.parent_id else "",
-                workorder.production_id.name,
                 workorder.workcenter_id.name,
-                workorder.name,
+                workorder.production_id.name,
+                tracking.product_id.default_code if tracking.parent_id else workorder.name,
             )
         return res
 
