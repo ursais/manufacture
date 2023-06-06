@@ -22,7 +22,11 @@ class AnalyticTrackingItem(models.Model):
     requested_qty = fields.Float()
     requested_amount = fields.Float()
 
-    @api.depends("stock_move_id.product_id", "workorder_id.display_name")
+    @api.depends(
+        "stock_move_id.product_id",
+        "workorder_id.display_name",
+        "workorder_id.workcenter_id",
+    )
     def _compute_name(self):
         res = super()._compute_name()
         for tracking in self.filtered("stock_move_id"):
@@ -34,11 +38,11 @@ class AnalyticTrackingItem(models.Model):
             )
         for tracking in self.filtered("workorder_id"):
             workorder = tracking.workorder_id
-            tracking.name = "{}{} / {} ({})".format(
+            tracking.name = "{}{} / {} / {}".format(
                 "-> " if tracking.parent_id else "",
+                workorder.workcenter_id.name,
                 workorder.production_id.name,
-                workorder.name,
-                tracking.product_id.display_name or "",
+                tracking.product_id.default_code if tracking.parent_id else workorder.name,
             )
         return res
 
@@ -61,7 +65,10 @@ class AnalyticTrackingItem(models.Model):
         - "stock_variance": is the Variance account
         """
         accounts = super()._get_accounting_data_for_valuation()
-        dest_location = self.stock_move_id.location_dest_id or (self.product_id.type == 'product' and self.product_id.property_stock_production)
+        dest_location = self.stock_move_id.location_dest_id or (
+            self.product_id.type == "product"
+            and self.product_id.property_stock_production
+        )
         # Only set for raw materials
         if dest_location and dest_location.valuation_in_account_id:
             accounts["stock_input"] = dest_location.valuation_in_account_id

@@ -4,9 +4,9 @@
 import logging
 
 from odoo import _, api, fields, models
+from odoo.tools import float_round
 
 _logger = logging.getLogger(__name__)
-from odoo.tools import float_is_zero, float_round
 
 
 class MRPProduction(models.Model):
@@ -29,6 +29,8 @@ class MRPProduction(models.Model):
         "WIP Actual Amount", compute="_compute_analytic_tracking_item"
     )
     currency_id = fields.Many2one("res.currency", related="company_id.currency_id")
+
+    is_post_wip_automatic = fields.Boolean(default=True)
 
     @api.depends(
         "move_raw_ids.state",
@@ -87,27 +89,52 @@ class MRPProduction(models.Model):
         super(MRPProduction, self)._cal_price(consumed_moves)
         work_center_cost = 0
         finished_move = self.move_finished_ids.filtered(
-            lambda x: x.product_id == self.product_id and x.state not in ('done', 'cancel') and x.quantity_done > 0)
+            lambda x: x.product_id == self.product_id
+            and x.state not in ("done", "cancel")
+            and x.quantity_done > 0
+        )
         if finished_move:
             finished_move.ensure_one()
             for work_order in self.workorder_ids:
-                time_lines = work_order.time_ids.filtered(lambda t: t.date_end and not t.cost_already_recorded)
+                time_lines = work_order.time_ids.filtered(
+                    lambda t: t.date_end and not t.cost_already_recorded
+                )
                 work_center_cost += work_order._cal_cost(times=time_lines)
-                time_lines.write({'cost_already_recorded': True})
+                time_lines.write({"cost_already_recorded": True})
             qty_done = finished_move.product_uom._compute_quantity(
-                finished_move.quantity_done, finished_move.product_id.uom_id)
+                finished_move.quantity_done, finished_move.product_id.uom_id
+            )
             extra_cost = self.extra_cost * qty_done
-            total_cost = - sum(consumed_moves.sudo().stock_valuation_layer_ids.mapped('value')) + work_center_cost + extra_cost
-            byproduct_moves = self.move_byproduct_ids.filtered(lambda m: m.state not in ('done', 'cancel') and m.quantity_done > 0)
+            total_cost = (
+                -sum(consumed_moves.sudo().stock_valuation_layer_ids.mapped("value"))
+                + work_center_cost
+                + extra_cost
+            )
+            byproduct_moves = self.move_byproduct_ids.filtered(
+                lambda m: m.state not in ("done", "cancel") and m.quantity_done > 0
+            )
             byproduct_cost_share = 0
             for byproduct in byproduct_moves:
                 if byproduct.cost_share == 0:
                     continue
                 byproduct_cost_share += byproduct.cost_share
-                if byproduct.product_id.cost_method in ('fifo', 'average'):
-                    byproduct.price_unit = total_cost * byproduct.cost_share / 100 / byproduct.product_uom._compute_quantity(byproduct.quantity_done, byproduct.product_id.uom_id)
-            if finished_move.product_id.cost_method in ('fifo', 'average'):
-                finished_move.price_unit = total_cost * float_round(1 - byproduct_cost_share / 100, precision_rounding=0.0001) / qty_done
+                if byproduct.product_id.cost_method in ("fifo", "average"):
+                    byproduct.price_unit = (
+                        total_cost
+                        * byproduct.cost_share
+                        / 100
+                        / byproduct.product_uom._compute_quantity(
+                            byproduct.quantity_done, byproduct.product_id.uom_id
+                        )
+                    )
+            if finished_move.product_id.cost_method in ("fifo", "average"):
+                finished_move.price_unit = (
+                    total_cost
+                    * float_round(
+                        1 - byproduct_cost_share / 100, precision_rounding=0.0001
+                    )
+                    / qty_done
+                )
         return True
 
     def _post_inventory(self, cancel_backorder=False):
@@ -485,7 +512,14 @@ class MRPProduction(models.Model):
         TODO: in what cases the planned amounts update should be prevented?
         """
         super().write(vals)
-        if "analytic_account_id" in vals:
+        is_workcenter_change = (
+            "workorder_ids" in vals
+            and vals["workorder_ids"][0]
+            and vals["workorder_ids"][0][2]
+            and "workcenter_id" in vals["workorder_ids"][0][2]
+        )
+
+        if "analytic_account_id" in vals or is_workcenter_change:
             confirmed_mos = self.filtered(lambda x: x.state == "confirmed")
             confirmed_mos.move_raw_ids.populate_tracking_items()
             confirmed_mos.workorder_ids.populate_tracking_items()
