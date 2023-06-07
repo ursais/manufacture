@@ -44,18 +44,6 @@ class StockMove(models.Model):
             res |= svl
         return res
 
-    @api.depends(
-        "raw_material_production_id.qty_producing", "product_uom_qty", "product_uom"
-    )
-    def _compute_should_consume_qty(self):
-        res = super()._compute_should_consume_qty()
-        # Components added after MO confirmation have expected qty zero
-        for move in self:
-            mo = move.raw_material_production_id
-            if mo.id and mo.state != "draft":
-                move.should_consume_qty = 0
-        return res
-
     # Copy Tracking item, so that when a move is split,
     # it still related to the same Tracking Item
     analytic_tracking_item_id = fields.Many2one(
@@ -63,58 +51,21 @@ class StockMove(models.Model):
     )
 
     def _prepare_mrp_raw_material_analytic_line(self):
+        # When creating consumption Analytic Items,
+        # set the linked Tracking Item, so that it can compute Actuals
         values = super()._prepare_mrp_raw_material_analytic_line()
         values["analytic_tracking_item_id"] = self.analytic_tracking_item_id.id
         return values
 
-    def _prepare_tracking_item_values(self):
-        analytic = self.raw_material_production_id.analytic_account_id
-        return {
-            "analytic_id": analytic.id,
-            "product_id": self.product_id.id,
-            "stock_move_id": self.id,
-            "requested_qty": self.product_uom_qty,
-        }
-
-    def populate_tracking_items(self):
-        """
-        When creating an Analytic Item,
-        link it to a Tracking Item, the may have to be created if it doesn't exist.
-        """
-        TrackingItem = self.env["account.analytic.tracking.item"]
-        to_populate = self.filtered(
-            lambda x: x.raw_material_production_id.analytic_account_id
-            and x.raw_material_production_id.state not in ("draft", "done", "cancel")
-        )
-        production_id = to_populate.raw_material_production_id
-        if production_id.is_post_wip_automatic:
-            production_id.action_post_inventory_wip()
-        all_tracking = production_id.analytic_tracking_item_ids
-        for item in to_populate:
-            tracking = all_tracking.filtered(
-                lambda x: x.product_id == item.product_id  # and x.stock_move_id
-            )
-            vals = item._prepare_tracking_item_values()
-            if tracking:
-                tracking.write(vals)
-            else:
-                tracking = TrackingItem.create(vals)
-            item.analytic_tracking_item_id = tracking
-
-    @api.model
-    def create(self, vals):
-        new_moves = super().create(vals)
-        new_moves.populate_tracking_items()
-        return new_moves
-
-    def write(self, vals):
-        res = super().write(vals)
-        if not self.env.context.get("flag_write_tracking"):
-            moves = self.filtered(
-                lambda x: x.raw_material_production_id.analytic_account_id
-                and not x.analytic_tracking_item_id
-            )
-            moves and moves.with_context(
-                flag_write_tracking=True
-            ).populate_tracking_items()
+    def generate_mrp_raw_analytic_line(self):
+        res = super().generate_mrp_raw_analytic_line()
+        # When recording actuals, consider posting WIP immediately
+        mos_to_post = self.raw_material_production_id.filtered("is_post_wip_automatic")
+        mos_to_post.action_post_inventory_wip()
         return res
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        new_moves = super().create(vals_list)
+        new_moves.raw_material_production_id.populate_tracking_items()
+        return new_moves

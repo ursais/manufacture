@@ -3,7 +3,7 @@
 
 import logging
 
-from odoo import _, api, fields, models
+from odoo import _, api, exceptions, fields, models
 from odoo.tools import float_round
 
 _logger = logging.getLogger(__name__)
@@ -12,21 +12,16 @@ _logger = logging.getLogger(__name__)
 class MRPProduction(models.Model):
     _inherit = "mrp.production"
 
-    bom_analytic_tracking_item_ids = fields.Many2many(
-        "account.analytic.tracking.item",
-        string="Tracking Items",
-    )
-
     analytic_tracking_item_ids = fields.Many2many(
         "account.analytic.tracking.item",
         string="Tracking Items",
-        compute="_compute_analytic_tracking_item",
+        # Not computed, now assigned by populate_tracking_items()
     )
     analytic_tracking_item_count = fields.Integer(
-        "WIP Item Count", compute="_compute_analytic_tracking_item"
+        "WIP Item Count", compute="_compute_analytic_tracking_item_amount"
     )
     analytic_tracking_item_amount = fields.Float(
-        "WIP Actual Amount", compute="_compute_analytic_tracking_item"
+        "WIP Actual Amount", compute="_compute_analytic_tracking_item_amount"
     )
     currency_id = fields.Many2one("res.currency", related="company_id.currency_id")
 
@@ -61,24 +56,9 @@ class MRPProduction(models.Model):
                     production.state = "progress"
         return res
 
-    def _get_tracking_items(self):
-        """
-        Returns a recordset with the related Ttacking Items
-        """
-        return (
-            self.bom_analytic_tracking_item_ids
-            | self.mapped("move_raw_ids.analytic_tracking_item_id")
-            | self.mapped("workorder_ids.analytic_tracking_item_id")
-            | self.mapped("workorder_ids.analytic_tracking_item_id.child_ids")
-        )
-
-    @api.depends(
-        "move_raw_ids.analytic_tracking_item_id",
-        "workorder_ids.analytic_tracking_item_id",
-    )
-    def _compute_analytic_tracking_item(self):
+    @api.depends("analytic_tracking_item_ids")
+    def _compute_analytic_tracking_item_amount(self):
         for mo in self:
-            mo.analytic_tracking_item_ids = mo._get_tracking_items()
             mo.analytic_tracking_item_count = len(mo.analytic_tracking_item_ids)
             mo.analytic_tracking_item_amount = sum(
                 mo.analytic_tracking_item_ids.mapped("actual_amount")
@@ -163,7 +143,6 @@ class MRPProduction(models.Model):
         A variation of _post_inventory that allows consuming raw materials
         during MO execution, rather than only at MO completion.
         Triggered by button click, not automatic on raw material consumption.
-        TODO: have an action available on MO list view
         """
         for order in self:
             moves_all = order.move_raw_ids
@@ -308,7 +287,7 @@ class MRPProduction(models.Model):
                     ]
                 )
 
-            tracking = prod._get_tracking_items()
+            tracking = prod.analytic_tracking_item_ids
             for item in tracking:
 
                 # get accounts
@@ -409,6 +388,95 @@ class MRPProduction(models.Model):
             "view_mode": "tree,form",
         }
 
+    # Populate Tracking Items
+
+    def _prepare_raw_tracking_item_values(self):
+        self.ensure_one()
+        # Each distinct Product will be one Tracking Item
+        # So multiple MO Stock Moves for the same Product need to be aggregated
+        lines = self.move_raw_ids
+        return [
+            {
+                "product_id": product.id,
+                "requested_qty": sum(
+                    x.product_uom_qty for x in lines if x.product_id == product
+                ),
+            }
+            for product in lines.product_id
+        ]
+
+    def _prepare_ops_tracking_item_values(self):
+        self.ensure_one()
+        # Each distinct Work Center will be one Tracking Item
+        # So multiple Work Orders for the same Work Center need to be aggregated
+        lines = self.workorder_ids
+        return [
+            {
+                "product_id": workcenter.analytic_product_id.id,
+                "workcenter_id": workcenter.id,
+                "requested_qty": sum(
+                    x.duration_expected for x in lines if x.workcenter_id == workcenter
+                )
+                / 60,
+            }
+            for workcenter in lines.workcenter_id
+        ]
+
+    def _populate_tracking_items(self, tracking_item_values):
+        """
+        Creates or updates Tracking Items for the Reference BOM
+        """
+        self.ensure_one()
+        if not self.analytic_account_id:
+            raise exceptions.UserError(
+                _("Analytic Account is missing for %s.") % self.display_name
+            )
+        TrackingItem = self.env["account.analytic.tracking.item"]
+        all_tracking_items = self.analytic_tracking_item_ids
+        tracking_items = all_tracking_items.filtered(lambda x: not x.parent_id)
+        for vals in tracking_item_values:
+            # Set MO and Analytic Account on the values
+            vals.update(
+                {
+                    "analytic_id": self.analytic_account_id.id,
+                    "production_id": self.id,
+                }
+            )
+            # Locate existing Tracking Item
+            workcenter_id = vals.get("workcenter_id")
+            product_id = vals.get("product_id")
+            if workcenter_id:
+                item = tracking_items.filtered(
+                    lambda x: x.workcenter_id.id == workcenter_id
+                )
+            else:
+                item = tracking_items.filtered(lambda x: x.product_id.id == product_id)
+            # Create new or update existing Tracking Item
+            if item:
+                item.write(vals)
+            else:
+                item = TrackingItem.create(vals)
+            tracking_items |= item
+        return tracking_items
+
+    def populate_tracking_items(self):
+        productions_in_progress = self.filtered(
+            lambda x: x.state in ["confirmed", "progress", "to_close"]
+        )
+        for production in productions_in_progress:
+            # Tracking Item values from the reference BoM
+            reference_bom = production.product_id.cost_reference_bom_id
+            bom_raw_vals = reference_bom._prepare_raw_tracking_item_values()
+            bom_ops_vals = reference_bom._prepare_ops_tracking_item_values()
+            # Tracking Items value for other lines not on the reference BoM
+            mo_raw_vals = production._prepare_raw_tracking_item_values()
+            mo_ops_vals = production._prepare_ops_tracking_item_values()
+            # Create or update the Tracking Items
+            items = production._populate_tracking_items(
+                bom_raw_vals + bom_ops_vals + mo_raw_vals + mo_ops_vals
+            )
+            production.analytic_tracking_item_ids = items | items.child_ids
+
     def action_confirm(self):
         """
         On MO Confirm, save the planned amount on the tracking item.
@@ -416,61 +484,8 @@ class MRPProduction(models.Model):
         just after MO confirmation.
         """
         res = super().action_confirm()
-        self.mapped("move_raw_ids").populate_tracking_items()
-        self.mapped("workorder_ids").populate_tracking_items()
-        for production in self:
-            reference_bom_id = production.product_id.cost_reference_bom_id
-            production._create_bom_raw_tracking_items(reference_bom_id)
-            production._create_bom_ops_tracking_items(reference_bom_id)
+        self.populate_tracking_items()
         return res
-
-    def _prepare_bom_raw_tracking_items(self, item):
-        analytic = self.analytic_account_id
-        return {
-            "analytic_id": analytic.id,
-            "product_id": item.product_id.id,
-            "planned_qty": item.product_qty,
-        }
-
-    def _create_bom_raw_tracking_items(self, reference_bom_id):
-        """
-        When creating a Raw Material Analytic Item,
-        link it to a BoM Raw Tracking Item, that may have to be created if it doesn't exist.
-        """
-        self._create_bom_tracking_items(
-            reference_bom_id.bom_line_ids, self._prepare_bom_raw_tracking_items
-        )
-
-    def _prepare_bom_ops_tracking_items(self, item):
-        analytic = self.analytic_account_id
-        return {
-            "analytic_id": analytic.id,
-            "product_id": item.workcenter_id.analytic_product_id.id,
-            "planned_qty": item.time_cycle / 60,
-        }
-
-    def _create_bom_ops_tracking_items(self, reference_bom_id):
-        """
-        When creating an Operations Analytic Item,
-        link it to a BoM Operations Tracking Item,
-        that may have to be created if it doesn't exist.
-        """
-        self._create_bom_tracking_items(
-            reference_bom_id.operation_ids, self._prepare_bom_ops_tracking_items
-        )
-
-    def _create_bom_tracking_items(self, items, _prepare_bom_tracking_items):
-        self.ensure_one()
-        for item in items:
-            vals = _prepare_bom_tracking_items(item)
-            tracking = self.env["account.analytic.tracking.item"].create(vals)
-            if tracking.product_id not in self.analytic_tracking_item_ids.product_id:
-                self.bom_analytic_tracking_item_ids += tracking
-            else:
-                existing_item = self.analytic_tracking_item_ids.filtered(
-                    lambda x: x.product_id == tracking.product_id
-                )
-                existing_item.planned_qty = tracking.planned_qty
 
     def button_mark_done(self):
         # Post all pending WIP and then generate MO close JEs
@@ -478,25 +493,19 @@ class MRPProduction(models.Model):
         # Run finished product valuation (no raw materials to valuate now)
         res = super().button_mark_done()
         mfg_done = self.filtered(lambda x: x.state == "done")
-        if mfg_done:
-            mfg_done._get_tracking_items()
-            # Ensure all pending WIP is posted
-            # tracking.process_wip_and_variance(close=True)
-            # Operations - clear WIP
-            # tracking.clear_wip_journal_entries()
-            # Raw Material - clear final WIP and post Variances
-            mfg_done.clear_wip_final()
+        # Raw Material - clear final WIP and post Variances
+        mfg_done.clear_wip_final()
         return res
 
     def action_cancel(self):
         res = super().action_cancel()
-        self._get_tracking_items().action_cancel()
+        self.analytic_tracking_item_ids.action_cancel()
         return res
 
-    @api.model
-    def create(self, vals):
-        new = super().create(vals)
-        # Do not copy Tracking Items wjen duplicating an MO
+    @api.model_create_multi
+    def create(self, vals_list):
+        new = super().create(vals_list)
+        # Do not copy Tracking Items when duplicating an MO
         to_fix = new.move_raw_ids.filtered("analytic_tracking_item_id")
         to_fix.write({"analytic_tracking_item_id": None})
         return new
@@ -521,6 +530,5 @@ class MRPProduction(models.Model):
 
         if "analytic_account_id" in vals or is_workcenter_change:
             confirmed_mos = self.filtered(lambda x: x.state == "confirmed")
-            confirmed_mos.move_raw_ids.populate_tracking_items()
-            confirmed_mos.workorder_ids.populate_tracking_items()
+            confirmed_mos.populate_tracking_items()
         return True

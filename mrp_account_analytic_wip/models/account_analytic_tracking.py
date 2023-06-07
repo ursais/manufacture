@@ -11,39 +11,43 @@ _logger = logging.getLogger(__name__)
 class AnalyticTrackingItem(models.Model):
     _inherit = "account.analytic.tracking.item"
 
+    # FIXME: remove Stock Move Id, as Tracking should be per Product
     stock_move_id = fields.Many2one(
         "stock.move", string="Stock Move", ondelete="cascade"
     )
+    # FIXME: remove Work Order  Id, as Tracking should be per WorkCenter
     workorder_id = fields.Many2one(
         "mrp.workorder", string="Work Order", ondelete="cascade"
+    )
+
+    production_id = fields.Many2one(
+        "mrp.production", string="Manufacturing Order", ondelete="cascade"
+    )
+    workcenter_id = fields.Many2one(
+        "mrp.workcenter", string="Work Center", ondelete="cascade"
     )
 
     # Requested quantity to be manufactured
     requested_qty = fields.Float()
     requested_amount = fields.Float()
 
-    @api.depends(
-        "stock_move_id.product_id",
-        "workorder_id.display_name",
-        "workorder_id.workcenter_id",
-    )
+    @api.depends("production_id", "workcenter_id")
     def _compute_name(self):
         res = super()._compute_name()
-        for tracking in self.filtered("stock_move_id"):
-            move = tracking.stock_move_id
-            tracking.name = "{}{} / {}".format(
-                "-> " if tracking.parent_id else "",
-                move.raw_material_production_id.name,
-                move.product_id.display_name,
-            )
-        for tracking in self.filtered("workorder_id"):
-            workorder = tracking.workorder_id
-            tracking.name = "{}{} / {} / {}".format(
-                "-> " if tracking.parent_id else "",
-                workorder.workcenter_id.name,
-                workorder.production_id.name,
-                tracking.product_id.default_code if tracking.parent_id else workorder.name,
-            )
+        for tracking in self.filtered("production_id"):
+            if tracking.workcenter_id:
+                tracking.name = "{}{} / {} / {}".format(
+                    "  - " if tracking.parent_id else "",
+                    tracking.production_id.name,
+                    tracking.workcenter_id.name,
+                    tracking.product_id.default_code if tracking.parent_id else "None",
+                )
+            else:
+                tracking.name = "{}{} / {}".format(
+                    "  - " if tracking.parent_id else "",
+                    tracking.production_id.name,
+                    tracking.product_id.display_name,
+                )
         return res
 
     def _prepare_account_move_head(self, journal, move_lines=None, ref=None):
@@ -53,6 +57,7 @@ class AnalyticTrackingItem(models.Model):
         res = super()._prepare_account_move_head(
             journal, move_lines=move_lines, ref=ref
         )
+        # FIXME: Reference BoM raw material Tracking Items don't have a Stock Move!
         res["stock_move_id"] = self.stock_move_id.id
         return res
 
@@ -64,6 +69,7 @@ class AnalyticTrackingItem(models.Model):
           posted
         - "stock_variance": is the Variance account
         """
+        # FIXME: Reference BoM raw material Tracking Items don't have a Stock Move!
         accounts = super()._get_accounting_data_for_valuation()
         dest_location = self.stock_move_id.location_dest_id or (
             self.product_id.type == "product"
@@ -84,8 +90,8 @@ class AnalyticTrackingItem(models.Model):
         use the Work Center's Cost Hour.
         """
         unit_cost = super()._get_unit_cost()
-        if not unit_cost and self.workorder_id:
-            unit_cost = self.workorder_id.workcenter_id.costs_hour
+        if not unit_cost and self.workcenter_id:
+            unit_cost = self.workcenter_id.costs_hour
         return unit_cost
 
     @api.depends(

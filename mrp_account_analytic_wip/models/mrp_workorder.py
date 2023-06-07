@@ -15,46 +15,19 @@ class MRPWorkOrder(models.Model):
     duration_expected = fields.Float(default=0.0)
     # Make MO lock status available for views
     is_locked = fields.Boolean(related="production_id.is_locked")
-    duration_planned = fields.Float(string="Planned Duration")
 
-    def _prepare_tracking_item_values(self):
-        analytic = self.production_id.analytic_account_id
-        return analytic and {
-            "analytic_id": analytic.id,
-            "product_id": self.workcenter_id.analytic_product_id.id,
-            "workorder_id": self.id,
-            "requested_qty": self.duration_expected / 60,
-        }
-
-    def populate_tracking_items(self):
-        """
-        When creating a Work Order link it to a Tracking Item.
-        It may be an existing Tracking Item,
-        or a new one my be created if it doesn't exist yet.
-        """
-        TrackingItem = self.env["account.analytic.tracking.item"]
-        to_populate = self.filtered(
-            lambda x: x.production_id.analytic_account_id
-            and x.production_id.state not in ("draft", "done", "cancel")
-        )
-        production_id = to_populate.production_id
-        if production_id.is_post_wip_automatic:
-            production_id.action_post_inventory_wip()
-        all_tracking = production_id.analytic_tracking_item_ids
-        for item in to_populate:
-            tracking = all_tracking.filtered(lambda x: x.workorder_id == self)[:1]
-            vals = item._prepare_tracking_item_values()
-            if tracking:
-                tracking.write(vals)
-            else:
-                tracking = TrackingItem.create(vals)
-            item.analytic_tracking_item_id = tracking
-
-    @api.model
-    def create(self, vals):
-        new_workorder = super().create(vals)
-        new_workorder.populate_tracking_items()
+    @api.model_create_multi
+    def create(self, vals_list):
+        new_workorder = super().create(vals_list)
+        new_workorder.production_id.populate_tracking_items()
         return new_workorder
+
+    def write(self, vals):
+        res = super().write(vals)
+        # Changing the Work Center should update the Tracking Items
+        if "workcenter_id" in vals:
+            self.production_id.populate_tracking_items()
+        return res
 
 
 class MrpWorkcenterProductivity(models.Model):
@@ -64,3 +37,10 @@ class MrpWorkcenterProductivity(models.Model):
         values = super()._prepare_mrp_workorder_analytic_item()
         values["product_id"] = self.workcenter_id.analytic_product_id.id
         return values
+
+    def generate_mrp_work_analytic_line(self):
+        res = super().generate_mrp_work_analytic_line()
+        # When recording actuals, consider posting WIp immedately
+        mos_to_post = self.production_id.filtered("is_post_wip_automatic")
+        mos_to_post.action_post_inventory_wip()
+        return res
