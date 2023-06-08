@@ -67,15 +67,12 @@ class MRPProduction(models.Model):
         """
         return (
             self.bom_analytic_tracking_item_ids
-            # FIXME: verify if BOM tracking Item childs alse need to be added
-            | self.mapped("move_raw_ids.analytic_tracking_item_id")
-            | self.mapped("workorder_ids.analytic_tracking_item_id")
-            | self.mapped("workorder_ids.analytic_tracking_item_id.child_ids")
+            | self.bom_analytic_tracking_item_ids.child_ids
         )
 
     @api.depends(
-        "move_raw_ids.analytic_tracking_item_id",
-        "workorder_ids.analytic_tracking_item_id",
+        "bom_analytic_tracking_item_ids",
+        "bom_analytic_tracking_item_ids.child_ids",
     )
     def _compute_analytic_tracking_item(self):
         for mo in self:
@@ -417,24 +414,61 @@ class MRPProduction(models.Model):
         just after MO confirmation.
         """
         res = super().action_confirm()
-        self.mapped("move_raw_ids").populate_tracking_items()
-        self.mapped("workorder_ids").populate_tracking_items()
         self.populate_ref_bom_tracking_items()
         return res
 
-    def _get_matching_tracking_item(self, vals):
+    def _get_matching_tracking_item(self, vals, new_tracking_items=None):
         existing_tracking_items = self.analytic_tracking_item_ids
+        if new_tracking_items:
+            existing_tracking_items |= new_tracking_items
+        production_id = vals.get("production_id")
         workcenter_id = vals.get("workcenter_id")
-        product_id = vals.get("product_id")
         if workcenter_id:
             item = existing_tracking_items.filtered(
                 lambda x: x.workcenter_id.id == workcenter_id
+                and not x.parent_id
+                and x.production_id.id == production_id
             )
         else:
+            product_id = vals.get("product_id")
             item = existing_tracking_items.filtered(
                 lambda x: x.product_id.id == product_id
+                and x.production_id.id == production_id
             )
         return item
+
+    def _prepare_raw_tracking_item_values(self):
+        # Each distinct Component will be one Tracking Item
+        # So multiple Stock Moves for the same Product need to be aggregated
+        self.ensure_one()
+        lines = self.move_raw_ids
+        return [
+            {
+                "product_id": product.id,
+                # Note that stock_move_id is not stored!
+                "requested_qty": sum(
+                    x.product_uom_qty for x in lines if x.product_id == product
+                ),
+            }
+            for product in lines.product_id
+        ]
+
+    def _prepare_ops_tracking_item_values(self):
+        # Each distinct Work Center will be one Tracking Item
+        # So multiple Work Order for the same Work Center need to be aggregated
+        self.ensure_one()
+        lines = self.workorder_ids
+        return [
+            {
+                "product_id": workcenter.analytic_product_id.id,
+                "workcenter_id": workcenter.id,
+                "requested_qty": sum(
+                    x.duration_expected for x in lines if x.workcenter_id == workcenter
+                )
+                / 60,
+            }
+            for workcenter in lines.workcenter_id
+        ]
 
     def _populate_ref_bom_tracking_items(self, tracking_item_values):
         """
@@ -460,7 +494,7 @@ class MRPProduction(models.Model):
             vals.update(vals_mo)
             # Locate existing Tracking Item and
             # Create new or update existing Tracking Item
-            item = self._get_matching_tracking_item(vals)
+            item = self._get_matching_tracking_item(vals, new_tracking_items)
             if item:
                 item.write(vals)
             else:
@@ -470,13 +504,16 @@ class MRPProduction(models.Model):
 
     def populate_ref_bom_tracking_items(self):
         # Update the Tracking Items based on Reference BOM Lines
+        # and based on MO Operations
         # To be triggered on Action Confirm, and on Reference BOM updates
-        # FIXME: call this when Reference BOM is changed
         for production in self:
+            mo_raw_vals = production._prepare_raw_tracking_item_values()
+            mo_ops_vals = production._prepare_ops_tracking_item_values()
             reference_bom = production.product_id.cost_reference_bom_id
+            ref_raw_vals = reference_bom._prepare_raw_tracking_item_values()
+            ref_ops_vals = reference_bom._prepare_ops_tracking_item_values()
             new_items = production._populate_ref_bom_tracking_items(
-                reference_bom._prepare_raw_tracking_item_values()
-                + reference_bom._prepare_ops_tracking_item_values()
+                mo_raw_vals + mo_ops_vals + ref_raw_vals + ref_ops_vals
             )
             production.bom_analytic_tracking_item_ids |= new_items
 
@@ -529,6 +566,5 @@ class MRPProduction(models.Model):
 
         if "analytic_account_id" in vals or is_workcenter_change:
             confirmed_mos = self.filtered(lambda x: x.state == "confirmed")
-            confirmed_mos.move_raw_ids.populate_tracking_items()
-            confirmed_mos.workorder_ids.populate_tracking_items()
+            confirmed_mos.populate_ref_bom_tracking_items()
         return True
