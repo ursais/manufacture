@@ -2,11 +2,13 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
 
-from odoo import models
+from odoo import api, fields, models
 
 
 class MrpBom(models.Model):
     _inherit = "mrp.bom"
+
+    active_ref_bom = fields.Boolean(string="Active Reference BOM")
 
     def _prepare_raw_tracking_item_values(self):
         self.ensure_one()
@@ -39,3 +41,34 @@ class MrpBom(models.Model):
             }
             for workcenter in lines.workcenter_id
         ]
+
+    def _get_impacted_products(self):
+        variant_products = self.product_id
+        template_boms = self.filtered(lambda x: not x.product_id)
+        template_products = template_boms.product_tmpl_id.product_variant_ids
+        return variant_products | template_products
+
+    def _populate_production_tracking_items(self):
+        # Identify open MOS impacted by these BOMs
+        # And re-populate their Reference BOM Tracking Items
+        products = self._get_impacted_products()
+        productions = self.env["mrp.production"].search(
+            [
+                ("product_id", "in", products.ids),
+                ("state", "not in", ["done", "cancel"]),
+                ("analytic_account_id", "!=", False),
+            ],
+        )
+        productions.populate_ref_bom_tracking_items()
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        res = super().create(vals_list)
+        res.filtered("active_ref_bom")._populate_production_tracking_items()
+        return res
+
+    def write(self, vals):
+        res = super().write(vals)
+        if "active_ref_bom" in vals:
+            self._populate_production_tracking_items()
+        return res
