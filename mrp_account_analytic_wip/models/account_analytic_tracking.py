@@ -17,6 +17,12 @@ class AnalyticTrackingItem(models.Model):
     workorder_id = fields.Many2one(
         "mrp.workorder", string="Work Order", ondelete="cascade"
     )
+    workcenter_id = fields.Many2one(
+        "mrp.workcenter", string="Work Center", ondelete="cascade"
+    )
+    production_id = fields.Many2one(
+        "mrp.production", string="Manufacturing Order", ondelete="cascade"
+    )
 
     # Requested quantity to be manufactured
     requested_qty = fields.Float()
@@ -29,21 +35,31 @@ class AnalyticTrackingItem(models.Model):
     )
     def _compute_name(self):
         res = super()._compute_name()
-        for tracking in self.filtered("stock_move_id"):
-            move = tracking.stock_move_id
-            tracking.name = "{}{} / {}".format(
-                "-> " if tracking.parent_id else "",
-                move.raw_material_production_id.name,
-                move.product_id.display_name,
-            )
-        for tracking in self.filtered("workorder_id"):
-            workorder = tracking.workorder_id
-            tracking.name = "{}{} / {} / {}".format(
-                "-> " if tracking.parent_id else "",
-                workorder.workcenter_id.name,
-                workorder.production_id.name,
-                tracking.product_id.default_code if tracking.parent_id else workorder.name,
-            )
+        for tracking in self:
+            is_child = tracking.parent_id
+            if tracking.stock_move_id:
+                move = tracking.stock_move_id
+                tracking.name = "{}{} / {}".format(
+                    "-> " if is_child else "",
+                    move.product_id.display_name,
+                    move.raw_material_production_id.name,
+                )
+            elif tracking.workorder_id:
+                workorder = tracking.workorder_id
+                tracking.name = "{}{} / {} / {}".format(
+                    "-> " if is_child else "",
+                    workorder.workcenter_id.name,
+                    workorder.production_id.name,
+                    tracking.product_id.default_code if is_child else workorder.name,
+                )
+            elif tracking.workcenter_id:
+                workcenter = tracking.workorder_id
+                tracking.name = "{}{} / {} / {}".format(
+                    "-> " if is_child else "",
+                    workcenter.name,
+                    tracking.production_id.name,
+                    tracking.product_id.default_code if is_child else workcenter.name,
+                )
         return res
 
     def _prepare_account_move_head(self, journal, move_lines=None, ref=None):
