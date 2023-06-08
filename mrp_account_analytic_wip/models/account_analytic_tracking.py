@@ -14,6 +14,7 @@ class AnalyticTrackingItem(models.Model):
     stock_move_id = fields.Many2one(
         "stock.move", string="Stock Move", ondelete="cascade"
     )
+    # FIXME: remove workorder, as Tracking Items should be per Work Center
     workorder_id = fields.Many2one(
         "mrp.workorder", string="Work Order", ondelete="cascade"
     )
@@ -32,6 +33,7 @@ class AnalyticTrackingItem(models.Model):
         "stock_move_id.product_id",
         "workorder_id.display_name",
         "workorder_id.workcenter_id",
+        "workcenter_id.name",
     )
     def _compute_name(self):
         res = super()._compute_name()
@@ -53,7 +55,7 @@ class AnalyticTrackingItem(models.Model):
                     tracking.product_id.default_code if is_child else workorder.name,
                 )
             elif tracking.workcenter_id:
-                workcenter = tracking.workorder_id
+                workcenter = tracking.workcenter_id
                 tracking.name = "{}{} / {} / {}".format(
                     "-> " if is_child else "",
                     workcenter.name,
@@ -100,8 +102,9 @@ class AnalyticTrackingItem(models.Model):
         use the Work Center's Cost Hour.
         """
         unit_cost = super()._get_unit_cost()
-        if not unit_cost and self.workorder_id:
-            unit_cost = self.workorder_id.workcenter_id.costs_hour
+        workcenter = self.workcenter_id or self.workorder_id.workcenter_id
+        if not unit_cost and workcenter:
+            unit_cost = workcenter.costs_hour
         return unit_cost
 
     @api.depends(
