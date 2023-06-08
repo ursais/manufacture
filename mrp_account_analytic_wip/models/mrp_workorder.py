@@ -44,9 +44,18 @@ class MrpWorkcenterProductivity(models.Model):
         values["product_id"] = workorder.workcenter_id.analytic_product_id.id
         return values
 
-    def generate_mrp_work_analytic_line(self):
-        res = super().generate_mrp_work_analytic_line()
-        # When recording actuals, consider posting WIp immedately
-        mos_to_post = self.production_id.filtered("is_post_wip_automatic")
-        mos_to_post.action_post_inventory_wip()
-        return res
+class MrpWorkcenterProductivityLoss(models.Model):
+    _inherit = "mrp.workcenter.productivity.loss"
+
+    def _convert_to_duration(self, date_start, date_stop, workcenter=False):
+        """ Convert a date range into a duration in minutes.
+        If the productivity type is not from an employee (extra hours are allow)
+        and the workcenter has a calendar, convert the dates into a duration based on
+        working hours.
+        """
+        duration = super()._convert_to_duration(date_start, date_stop, workcenter)
+        for productivity_loss in self:
+            if workcenter and workcenter.resource_calendar_id:
+                r = workcenter._get_work_days_data_batch(date_start, date_stop)[workcenter.id]['hours']
+                duration = r * 60
+        return duration
