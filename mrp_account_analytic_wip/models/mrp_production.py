@@ -14,7 +14,7 @@ class MRPProduction(models.Model):
 
     bom_analytic_tracking_item_ids = fields.Many2many(
         "account.analytic.tracking.item",
-        string="Tracking Items",
+        string="BOM Tracking Items",
     )
 
     analytic_tracking_item_ids = fields.Many2many(
