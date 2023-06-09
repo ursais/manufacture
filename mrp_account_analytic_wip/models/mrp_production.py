@@ -535,9 +535,9 @@ class MRPProduction(models.Model):
         res = super().button_mark_done()
         mfg_done = self.filtered(lambda x: x.state == "done")
         if mfg_done:
-            mfg_done._get_tracking_items()
-            # Ensure all pending WIP is posted
-            # tracking.process_wip_and_variance(close=True)
+            # Ensure all pending WIP is posted,
+            # and set Tracking Items as closed, locking them from recomputations
+            mfg_done.analytic_tracking_item_ids.write({"state": "done"})
             # Operations - clear WIP
             # tracking.clear_wip_journal_entries()
             # Raw Material - clear final WIP and post Variances
