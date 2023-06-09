@@ -507,12 +507,6 @@ class MRPProduction(models.Model):
         # and based on MO Operations
         # To be triggered on Action Confirm, and on Reference BOM updates
         for production in self:
-            # MO line related Items
-            mo_raw_vals = production._prepare_raw_tracking_item_values()
-            mo_ops_vals = production._prepare_ops_tracking_item_values()
-            mo_items = production._populate_ref_bom_tracking_items(
-                mo_raw_vals + mo_ops_vals
-            )
             # Reference BOM related Items
             reference_bom = production.product_id.cost_reference_bom_id
             ref_raw_vals = reference_bom._prepare_raw_tracking_item_values()
@@ -524,8 +518,15 @@ class MRPProduction(models.Model):
             existing_items = production.bom_analytic_tracking_item_ids
             excess_items = existing_items - ref_items
             excess_items.write({"planned_qty": 0.0})
+            production.bom_analytic_tracking_item_ids |= ref_items
+            # MO line related Items
+            mo_raw_vals = production._prepare_raw_tracking_item_values()
+            mo_ops_vals = production._prepare_ops_tracking_item_values()
+            mo_items = production._populate_ref_bom_tracking_items(
+                mo_raw_vals + mo_ops_vals
+            )
             # Store any new items that may have been craeted
-            production.bom_analytic_tracking_item_ids |= mo_items + ref_items
+            production.bom_analytic_tracking_item_ids |= mo_items
 
     def button_mark_done(self):
         # Post all pending WIP and then generate MO close JEs
@@ -534,9 +535,9 @@ class MRPProduction(models.Model):
         res = super().button_mark_done()
         mfg_done = self.filtered(lambda x: x.state == "done")
         if mfg_done:
-            mfg_done._get_tracking_items()
-            # Ensure all pending WIP is posted
-            # tracking.process_wip_and_variance(close=True)
+            # Ensure all pending WIP is posted,
+            # and set Tracking Items as closed, locking them from recomputations
+            mfg_done.analytic_tracking_item_ids.write({"state": "done"})
             # Operations - clear WIP
             # tracking.clear_wip_journal_entries()
             # Raw Material - clear final WIP and post Variances
