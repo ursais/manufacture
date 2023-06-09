@@ -44,6 +44,13 @@ class MrpWorkcenterProductivity(models.Model):
         values["product_id"] = workorder.workcenter_id.analytic_product_id.id
         return values
 
+    def generate_mrp_work_analytic_line(self):
+        res = super().generate_mrp_work_analytic_line()
+        # When recording actuals, consider posting WIp immedately
+        mos_to_post = self.production_id.filtered("is_post_wip_automatic")
+        mos_to_post.action_post_inventory_wip()
+        return res
+      
 class MrpWorkcenterProductivityLoss(models.Model):
     _inherit = "mrp.workcenter.productivity.loss"
 
@@ -59,5 +66,3 @@ class MrpWorkcenterProductivityLoss(models.Model):
                 r = workcenter._get_work_days_data_batch(date_start, date_stop)[workcenter.id]['hours']
                 duration = r * 60
         return duration
-
-

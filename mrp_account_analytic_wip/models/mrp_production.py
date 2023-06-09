@@ -507,15 +507,25 @@ class MRPProduction(models.Model):
         # and based on MO Operations
         # To be triggered on Action Confirm, and on Reference BOM updates
         for production in self:
+            # MO line related Items
             mo_raw_vals = production._prepare_raw_tracking_item_values()
             mo_ops_vals = production._prepare_ops_tracking_item_values()
+            mo_items = production._populate_ref_bom_tracking_items(
+                mo_raw_vals + mo_ops_vals
+            )
+            # Reference BOM related Items
             reference_bom = production.product_id.cost_reference_bom_id
             ref_raw_vals = reference_bom._prepare_raw_tracking_item_values()
             ref_ops_vals = reference_bom._prepare_ops_tracking_item_values()
-            new_items = production._populate_ref_bom_tracking_items(
-                mo_raw_vals + mo_ops_vals + ref_raw_vals + ref_ops_vals
+            ref_items = production._populate_ref_bom_tracking_items(
+                ref_raw_vals + ref_ops_vals
             )
-            production.bom_analytic_tracking_item_ids |= new_items
+            # Items not in the Reference BOM must have zero planned/standard
+            existing_items = production.bom_analytic_tracking_item_ids
+            excess_items = existing_items - ref_items
+            excess_items.write({"planned_qty": 0.0})
+            # Store any new items that may have been craeted
+            production.bom_analytic_tracking_item_ids |= mo_items + ref_items
 
     def button_mark_done(self):
         # Post all pending WIP and then generate MO close JEs
