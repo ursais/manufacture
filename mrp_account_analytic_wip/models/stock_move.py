@@ -80,6 +80,13 @@ class StockMove(models.Model):
         values["analytic_tracking_item_id"] = self.analytic_tracking_item_id.id
         return values
 
+    def generate_mrp_raw_analytic_line(self):
+        res = super().generate_mrp_raw_analytic_line()
+        # When recording actuals, consider posting WIP immediately
+        mos_to_post = self.raw_material_production_id.filtered("is_post_wip_automatic")
+        mos_to_post.action_post_inventory_wip()
+        return res
+
     @api.model
     def create(self, vals):
         new_moves = super().create(vals)

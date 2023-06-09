@@ -59,7 +59,10 @@ class MrpBom(models.Model):
                 ("analytic_account_id", "!=", False),
             ],
         )
+        # Update Tracking Items, for possible new lines and standard amount changes
         productions.populate_ref_bom_tracking_items()
+        # Post WIP based on the changes
+        productions.filtered("is_post_wip_automatic").action_post_inventory_wip()
 
     @api.model_create_multi
     def create(self, vals_list):

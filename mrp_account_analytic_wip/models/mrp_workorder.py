@@ -43,3 +43,10 @@ class MrpWorkcenterProductivity(models.Model):
         values["analytic_tracking_item_id"] = workorder.analytic_tracking_item_id.id
         values["product_id"] = workorder.workcenter_id.analytic_product_id.id
         return values
+
+    def generate_mrp_work_analytic_line(self):
+        res = super().generate_mrp_work_analytic_line()
+        # When recording actuals, consider posting WIp immedately
+        mos_to_post = self.production_id.filtered("is_post_wip_automatic")
+        mos_to_post.action_post_inventory_wip()
+        return res
