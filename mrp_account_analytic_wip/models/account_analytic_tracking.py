@@ -24,6 +24,8 @@ class AnalyticTrackingItem(models.Model):
     production_id = fields.Many2one(
         "mrp.production", string="Manufacturing Order", ondelete="cascade"
     )
+    actual_stock_move_ids = fields.One2many("stock.move", "analytic_tracking_item_id")
+    actual_workorder_ids = fields.One2many("mrp.workorder", "analytic_tracking_item_id")
 
     # Requested quantity to be manufactured
     requested_qty = fields.Float()
@@ -106,6 +108,33 @@ class AnalyticTrackingItem(models.Model):
         if not unit_cost and workcenter:
             unit_cost = workcenter.costs_hour
         return unit_cost
+
+    @api.depends(
+        "analytic_line_ids.amount",
+        "parent_id.analytic_line_ids.amount",
+        "state",
+        "child_ids",
+        "product_id.standard_price",
+        "actual_stock_move_ids",
+        "actual_workorder_ids",
+    )
+    def _compute_actual_amount(self):
+        currency = self.env.company.currency_id
+        for item in self:
+            if item.state == "cancel" or item.child_ids:
+                item.actual_amount = 0.0
+            elif not item.production_id:
+                super(AnalyticTrackingItem, item)._compute_actual_amount()
+            else:
+                # Specific Actuals calculation on MOs, using current cost
+                # instead of the historical cost stored in Anaytic Items
+                unit_cost = item.product_id.standard_price
+                items = item | item.parent_id
+                raw_qty = sum(items.actual_stock_move_ids.mapped("quantity_done"))
+                ops_qty = sum(items.actual_workorder_ids.mapped("duration")) / 60
+                actual = currency.round(unit_cost * (raw_qty + ops_qty))
+                item.actual_amount = actual
+        return
 
     @api.depends(
         "analytic_line_ids.amount",

@@ -30,5 +30,16 @@ class MrpWorkcenterProductivity(models.Model):
 
     def _prepare_mrp_workorder_analytic_item(self):
         values = super()._prepare_mrp_workorder_analytic_item()
-        values["product_id"] = self.workcenter_id.analytic_product_id.id
+        # Ensure the related Tracking Item is populated
+        workorder = self.workorder_id
+        if not workorder.analytic_tracking_item_id:
+            item_vals = {
+                "product_id": workorder.workcenter_id.analytic_product_id.id,
+                "production_id": workorder.production_id.id,
+                "workcenter_id": workorder.workcenter_id.id,
+            }
+            item = workorder.production_id._get_matching_tracking_item(item_vals)
+            self.workorder_id.analytic_tracking_item_id = item
+        values["analytic_tracking_item_id"] = workorder.analytic_tracking_item_id.id
+        values["product_id"] = workorder.workcenter_id.analytic_product_id.id
         return values
