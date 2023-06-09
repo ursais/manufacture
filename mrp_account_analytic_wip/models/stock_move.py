@@ -18,7 +18,7 @@ class StockMove(models.Model):
         for move in self:
             svl = super(StockMove, move)._create_in_svl(forced_quantity=forced_quantity)
             if move.raw_material_production_id:
-                svl.description = "%s - %s (modification of past move)" % (
+                svl.description = "%s - %s (consumption)" % (
                     move.raw_material_production_id.name,
                     move.product_id.name,
                 )
