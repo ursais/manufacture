@@ -3,7 +3,7 @@
 
 import logging
 
-from odoo import _, api, fields, models
+from odoo import _, api, exceptions, fields, models
 from odoo.tools import float_round
 
 _logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ class MRPProduction(models.Model):
 
     bom_analytic_tracking_item_ids = fields.Many2many(
         "account.analytic.tracking.item",
-        string="Tracking Items",
+        string="BOM Tracking Items",
     )
 
     analytic_tracking_item_ids = fields.Many2many(
@@ -67,14 +67,12 @@ class MRPProduction(models.Model):
         """
         return (
             self.bom_analytic_tracking_item_ids
-            | self.mapped("move_raw_ids.analytic_tracking_item_id")
-            | self.mapped("workorder_ids.analytic_tracking_item_id")
-            | self.mapped("workorder_ids.analytic_tracking_item_id.child_ids")
+            | self.bom_analytic_tracking_item_ids.child_ids
         )
 
     @api.depends(
-        "move_raw_ids.analytic_tracking_item_id",
-        "workorder_ids.analytic_tracking_item_id",
+        "bom_analytic_tracking_item_ids",
+        "bom_analytic_tracking_item_ids.child_ids",
     )
     def _compute_analytic_tracking_item(self):
         for mo in self:
@@ -416,61 +414,119 @@ class MRPProduction(models.Model):
         just after MO confirmation.
         """
         res = super().action_confirm()
-        self.mapped("move_raw_ids").populate_tracking_items()
-        self.mapped("workorder_ids").populate_tracking_items()
-        for production in self:
-            reference_bom_id = production.product_id.cost_reference_bom_id
-            production._create_bom_raw_tracking_items(reference_bom_id)
-            production._create_bom_ops_tracking_items(reference_bom_id)
+        self.populate_ref_bom_tracking_items()
         return res
 
-    def _prepare_bom_raw_tracking_items(self, item):
-        analytic = self.analytic_account_id
-        return {
-            "analytic_id": analytic.id,
-            "product_id": item.product_id.id,
-            "planned_qty": item.product_qty,
-        }
+    def _get_matching_tracking_item(self, vals, new_tracking_items=None):
+        existing_tracking_items = self.analytic_tracking_item_ids
+        if new_tracking_items:
+            existing_tracking_items |= new_tracking_items
+        production_id = vals.get("production_id")
+        workcenter_id = vals.get("workcenter_id")
+        if workcenter_id:
+            item = existing_tracking_items.filtered(
+                lambda x: x.workcenter_id.id == workcenter_id
+                and not x.parent_id
+                and x.production_id.id == production_id
+            )
+        else:
+            product_id = vals.get("product_id")
+            item = existing_tracking_items.filtered(
+                lambda x: x.product_id.id == product_id
+                and x.production_id.id == production_id
+            )
+        return item
 
-    def _create_bom_raw_tracking_items(self, reference_bom_id):
-        """
-        When creating a Raw Material Analytic Item,
-        link it to a BoM Raw Tracking Item, that may have to be created if it doesn't exist.
-        """
-        self._create_bom_tracking_items(
-            reference_bom_id.bom_line_ids, self._prepare_bom_raw_tracking_items
-        )
-
-    def _prepare_bom_ops_tracking_items(self, item):
-        analytic = self.analytic_account_id
-        return {
-            "analytic_id": analytic.id,
-            "product_id": item.workcenter_id.analytic_product_id.id,
-            "planned_qty": item.time_cycle / 60,
-        }
-
-    def _create_bom_ops_tracking_items(self, reference_bom_id):
-        """
-        When creating an Operations Analytic Item,
-        link it to a BoM Operations Tracking Item,
-        that may have to be created if it doesn't exist.
-        """
-        self._create_bom_tracking_items(
-            reference_bom_id.operation_ids, self._prepare_bom_ops_tracking_items
-        )
-
-    def _create_bom_tracking_items(self, items, _prepare_bom_tracking_items):
+    def _prepare_raw_tracking_item_values(self):
+        # Each distinct Component will be one Tracking Item
+        # So multiple Stock Moves for the same Product need to be aggregated
         self.ensure_one()
-        for item in items:
-            vals = _prepare_bom_tracking_items(item)
-            tracking = self.env["account.analytic.tracking.item"].create(vals)
-            if tracking.product_id not in self.analytic_tracking_item_ids.product_id:
-                self.bom_analytic_tracking_item_ids += tracking
-            else:
-                existing_item = self.analytic_tracking_item_ids.filtered(
-                    lambda x: x.product_id == tracking.product_id
+        lines = self.move_raw_ids
+        return [
+            {
+                "product_id": product.id,
+                # Note that stock_move_id is not stored!
+                "requested_qty": sum(
+                    x.product_uom_qty for x in lines if x.product_id == product
+                ),
+            }
+            for product in lines.product_id
+        ]
+
+    def _prepare_ops_tracking_item_values(self):
+        # Each distinct Work Center will be one Tracking Item
+        # So multiple Work Order for the same Work Center need to be aggregated
+        self.ensure_one()
+        lines = self.workorder_ids
+        return [
+            {
+                "product_id": workcenter.analytic_product_id.id,
+                "workcenter_id": workcenter.id,
+                "requested_qty": sum(
+                    x.duration_expected for x in lines if x.workcenter_id == workcenter
                 )
-                existing_item.planned_qty = tracking.planned_qty
+                / 60,
+            }
+            for workcenter in lines.workcenter_id
+        ]
+
+    def _populate_ref_bom_tracking_items(self, tracking_item_values):
+        """
+        Creates or updates Tracking Items for the Reference BOM
+        """
+        self.ensure_one()
+        # Ensure the MO has an Analytic Account set
+        if not self.analytic_account_id:
+            raise exceptions.UserError(
+                _("Analytic Account is missing for %s.") % self.display_name
+            )
+        # Create missing Tracking Items form BOm components
+        # For each BOM componet value, find a matching Tracking Item,
+        # and update or create it.
+        TrackingItem = self.env["account.analytic.tracking.item"]
+        new_tracking_items = TrackingItem
+        for vals in tracking_item_values:
+            # Set MO and Analytic Account on the values
+            vals_mo = {
+                "analytic_id": self.analytic_account_id.id,
+                "production_id": self.id,
+            }
+            vals.update(vals_mo)
+            # Locate existing Tracking Item and
+            # Create new or update existing Tracking Item
+            item = self._get_matching_tracking_item(vals, new_tracking_items)
+            if item:
+                item.write(vals)
+            else:
+                item = self.env["account.analytic.tracking.item"].create(vals)
+            new_tracking_items |= item
+        return new_tracking_items
+
+    def populate_ref_bom_tracking_items(self):
+        # Update the Tracking Items based on Reference BOM Lines
+        # and based on MO Operations
+        # To be triggered on Action Confirm, and on Reference BOM updates
+        for production in self:
+            # Reference BOM related Items
+            reference_bom = production.product_id.cost_reference_bom_id
+            ref_raw_vals = reference_bom._prepare_raw_tracking_item_values()
+            ref_ops_vals = reference_bom._prepare_ops_tracking_item_values()
+            ref_items = production._populate_ref_bom_tracking_items(
+                ref_raw_vals + ref_ops_vals
+            )
+            # Items not in the Reference BOM must have zero planned/standard
+            existing_items = production.bom_analytic_tracking_item_ids
+            excess_items = existing_items - ref_items
+            excess_items.write({"planned_qty": 0.0})
+            production.bom_analytic_tracking_item_ids |= ref_items
+            # MO line related Items
+            mo_raw_vals = production._prepare_raw_tracking_item_values()
+            mo_ops_vals = production._prepare_ops_tracking_item_values()
+            mo_items = production._populate_ref_bom_tracking_items(
+                mo_raw_vals + mo_ops_vals
+            )
+            # Store any new items that may have been craeted
+            production.bom_analytic_tracking_item_ids |= mo_items
 
     def button_mark_done(self):
         # Post all pending WIP and then generate MO close JEs
@@ -479,9 +535,9 @@ class MRPProduction(models.Model):
         res = super().button_mark_done()
         mfg_done = self.filtered(lambda x: x.state == "done")
         if mfg_done:
-            mfg_done._get_tracking_items()
-            # Ensure all pending WIP is posted
-            # tracking.process_wip_and_variance(close=True)
+            # Ensure all pending WIP is posted,
+            # and set Tracking Items as closed, locking them from recomputations
+            mfg_done.analytic_tracking_item_ids.write({"state": "done"})
             # Operations - clear WIP
             # tracking.clear_wip_journal_entries()
             # Raw Material - clear final WIP and post Variances
@@ -493,10 +549,10 @@ class MRPProduction(models.Model):
         self._get_tracking_items().action_cancel()
         return res
 
-    @api.model
-    def create(self, vals):
-        new = super().create(vals)
-        # Do not copy Tracking Items wjen duplicating an MO
+    @api.model_create_multi
+    def create(self, vals_list):
+        new = super().create(vals_list)
+        # Do not copy Tracking Items when duplicating an MO
         to_fix = new.move_raw_ids.filtered("analytic_tracking_item_id")
         to_fix.write({"analytic_tracking_item_id": None})
         return new
@@ -521,6 +577,5 @@ class MRPProduction(models.Model):
 
         if "analytic_account_id" in vals or is_workcenter_change:
             confirmed_mos = self.filtered(lambda x: x.state == "confirmed")
-            confirmed_mos.move_raw_ids.populate_tracking_items()
-            confirmed_mos.workorder_ids.populate_tracking_items()
+            confirmed_mos.populate_ref_bom_tracking_items()
         return True
