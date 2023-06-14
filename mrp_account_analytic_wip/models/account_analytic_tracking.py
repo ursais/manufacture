@@ -50,19 +50,17 @@ class AnalyticTrackingItem(models.Model):
                 )
             elif tracking.workorder_id:
                 workorder = tracking.workorder_id
-                tracking.name = "{}{} / {} / {}".format(
+                tracking.name = "{} {} {}".format(
                     "-> " if is_child else "",
-                    workorder.workcenter_id.name,
-                    workorder.production_id.name,
-                    tracking.product_id.default_code if is_child else workorder.name,
+                    "" if is_child else workorder.workcenter_id.name,
+                    tracking.product_id.default_code if is_child else "",
                 )
             elif tracking.workcenter_id:
                 workcenter = tracking.workcenter_id
-                tracking.name = "{}{} / {} / {}".format(
+                tracking.name = "{} {} {}".format(
                     "-> " if is_child else "",
-                    workcenter.name,
-                    tracking.production_id.name,
-                    tracking.product_id.default_code if is_child else workcenter.name,
+                    "" if is_child else workcenter.name,
+                    tracking.product_id.default_code if is_child else "",
                 )
         return res
 
