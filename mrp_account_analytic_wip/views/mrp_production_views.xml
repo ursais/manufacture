@@ -9,7 +9,7 @@
                     name="action_post_inventory_wip"
                     type="object"
                     string="Post WIP"
-                    attrs="{'invisible': [('state', 'in', ('draft', 'confirmed', 'progress', 'done', 'cancel'))]}"
+                    attrs="{'invisible': [('state', 'in', ('draft', 'confirmed', 'progress', 'done', 'to_close','cancel'))]}"
                 />
             </button>
             <div name="button_box" position="inside">
