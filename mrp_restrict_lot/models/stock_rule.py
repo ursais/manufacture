@@ -32,6 +32,6 @@ class StockRule(models.Model):
         lot_id = values.get("restrict_lot_id")
         if lot_id:
             vals["lot_producing_id"] = lot_id
-            lot = self.env["stock.lot"].browse(lot_id)
-            vals["name"] = lot.name
+#            lot = self.env["stock.lot"].browse(lot_id)
+#            vals["name"] = lot.name
         return vals
