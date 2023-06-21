@@ -509,8 +509,8 @@ class MRPProduction(models.Model):
         for production in self:
             # Reference BOM related Items
             reference_bom = production.product_id.cost_reference_bom_id
-            ref_raw_vals = reference_bom._prepare_raw_tracking_item_values()
-            ref_ops_vals = reference_bom._prepare_ops_tracking_item_values()
+            ref_raw_vals = reference_bom._prepare_raw_tracking_item_values(production.product_uom_qty)
+            ref_ops_vals = reference_bom._prepare_ops_tracking_item_values(production.product_uom_qty)
             ref_items = production._populate_ref_bom_tracking_items(
                 ref_raw_vals + ref_ops_vals
             )
