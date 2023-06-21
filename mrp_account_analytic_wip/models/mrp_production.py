@@ -321,7 +321,7 @@ class MRPProduction(models.Model):
                             prod._prepare_clear_wip_account_move_line(
                                 item.product_id,
                                 accounts["stock_wip"],
-                                -item.actual_amount,
+                                -round(item.actual_amount,2),
                             )
                         ]
                     )
@@ -332,7 +332,7 @@ class MRPProduction(models.Model):
                                 prod._prepare_clear_wip_account_move_line(
                                     item.product_id,
                                     accounts["stock_variance"],
-                                    item.difference_actual_amount,
+                                    round(item.difference_actual_amount,2)
                                 )
                             ]
                         )
@@ -346,7 +346,7 @@ class MRPProduction(models.Model):
                             prod._prepare_clear_wip_account_move_line(
                                 item.product_id,
                                 accounts["stock_wip"],
-                                -item.actual_amount,
+                                -round(item.actual_amount,2),
                             )
                         ]
                     )
@@ -359,7 +359,7 @@ class MRPProduction(models.Model):
                                 prod._prepare_clear_wip_account_move_line(
                                     item.product_id,
                                     accounts["stock_variance"],
-                                    item.difference_actual_amount,
+                                    round(item.difference_actual_amount),
                                 )
                             ]
                         )
@@ -373,13 +373,30 @@ class MRPProduction(models.Model):
                                 prod._prepare_clear_wip_account_move_line(
                                     item.product_id,
                                     accounts["stock_variance"],
-                                    item.difference_actual_amount,
+                                    round(item.difference_actual_amount),
                                 )
                             ]
                         )
 
                 else:
                     continue
+
+            # balance journal for rounding off error
+            debit = 0.0
+            credit = 0.0
+            for line in move_lines:
+                debit += line['debit']
+                credit += line['credit']
+            if credit - debit:
+                move_lines.extend(
+                    [
+                        prod._prepare_clear_wip_account_move_line(
+                            prod.product_id,
+                            accounts["stock_variance"],
+                            -round(debit-credit, 2),
+                        )
+                    ]
+                )
 
             if move_lines:
                 je_vals = tracking[0]._prepare_account_move_head(

@@ -127,6 +127,10 @@ class AnalyticTrackingItem(models.Model):
                 # Specific Actuals calculation on MOs, using current cost
                 # instead of the historical cost stored in Anaytic Items
                 unit_cost = item.product_id.standard_price
+                workcenter = item.workcenter_id or item.workorder_id.workcenter_id
+                if workcenter:
+                    factor = item.production_id.product_qty/item.production_id.bom_id.product_uom_id._compute_quantity(item.production_id.bom_id.product_qty,item.production_id.bom_id.product_id.uom_id)
+                    unit_cost = unit_cost * factor
                 items = item | item.parent_id
                 raw_qty = sum(items.actual_stock_move_ids.mapped("quantity_done"))
                 ops_qty = sum(items.actual_workorder_ids.mapped("duration")) / 60
