@@ -12,6 +12,10 @@ class MrpBom(models.Model):
 
     def _prepare_raw_tracking_item_values(self, product_uom_qty):
         self.ensure_one()
+        bom_qty = self.product_uom_id._compute_quantity(
+                self.product_qty, self.product_id.uom_id
+            ) 
+        factor = product_uom_qty / bom_qty
         # Each distinct Product will be one Tracking Item
         # So multiple BOM lines for the same Product need to be aggregated
         lines = self.bom_line_ids
@@ -20,7 +24,7 @@ class MrpBom(models.Model):
                 "product_id": product.id,
                 "planned_qty": sum(
                     x.product_qty for x in lines if x.product_id == product
-                ) * product_uom_qty,
+                ) * factor,
             }
             for product in lines.product_id
         ]
@@ -29,6 +33,10 @@ class MrpBom(models.Model):
         self.ensure_one()
         # Each distinct Work Center will be one Tracking Item
         # So multiple BOM lines for the same Work Center need to be aggregated
+        bom_qty = self.product_uom_id._compute_quantity(
+                self.product_qty, self.product_id.uom_id
+            ) 
+        factor = product_uom_qty / bom_qty
         lines = self.operation_ids
         return [
             {
@@ -36,7 +44,7 @@ class MrpBom(models.Model):
                 "workcenter_id": workcenter.id,
                 "planned_qty": sum(
                     x.time_cycle for x in lines if x.workcenter_id == workcenter
-                ) * product_uom_qty
+                ) * factor
                 / 60,
             }
             for workcenter in lines.workcenter_id
