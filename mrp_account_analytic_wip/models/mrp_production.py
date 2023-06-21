@@ -301,7 +301,7 @@ class MRPProduction(models.Model):
                 move_lines.extend(
                     [
                         prod._prepare_clear_wip_account_move_line(
-                            product, acc_wip_prod, product.standard_price
+                            product, acc_wip_prod, prod.product_uom_qty * product.standard_price
                         )
                     ]
                 )
