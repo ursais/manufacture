@@ -10,7 +10,7 @@ class MrpBom(models.Model):
 
     active_ref_bom = fields.Boolean(string="Active Reference BOM")
 
-    def _prepare_raw_tracking_item_values(self):
+    def _prepare_raw_tracking_item_values(self, product_uom_qty):
         self.ensure_one()
         # Each distinct Product will be one Tracking Item
         # So multiple BOM lines for the same Product need to be aggregated
@@ -20,12 +20,12 @@ class MrpBom(models.Model):
                 "product_id": product.id,
                 "planned_qty": sum(
                     x.product_qty for x in lines if x.product_id == product
-                ),
+                ) * product_uom_qty,
             }
             for product in lines.product_id
         ]
 
-    def _prepare_ops_tracking_item_values(self):
+    def _prepare_ops_tracking_item_values(self, product_uom_qty):
         self.ensure_one()
         # Each distinct Work Center will be one Tracking Item
         # So multiple BOM lines for the same Work Center need to be aggregated
@@ -36,7 +36,7 @@ class MrpBom(models.Model):
                 "workcenter_id": workcenter.id,
                 "planned_qty": sum(
                     x.time_cycle for x in lines if x.workcenter_id == workcenter
-                )
+                ) * product_uom_qty
                 / 60,
             }
             for workcenter in lines.workcenter_id
