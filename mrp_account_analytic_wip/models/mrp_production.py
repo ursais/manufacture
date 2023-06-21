@@ -531,8 +531,18 @@ class MRPProduction(models.Model):
     def button_mark_done(self):
         # Post all pending WIP and then generate MO close JEs
         self.action_post_inventory_wip()
+        # Save workorders with duration = 0
+        wo1 = self.workorder_ids.filtered(lambda x: x.duration == 0)
+        # Save workorders with no time_ids
+        wo2 = self.workorder_ids.filtered(lambda x: x.time_ids is False)
         # Run finished product valuation (no raw materials to valuate now)
         res = super().button_mark_done()
+        # Reset duration
+        for wo in wo1:
+            wo.duration = 0
+        # Reset time_ids
+        for wo in wo2:
+            wo.time_ids.unlink()
         mfg_done = self.filtered(lambda x: x.state == "done")
         if mfg_done:
             # Ensure all pending WIP is posted,
