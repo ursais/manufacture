@@ -319,19 +319,20 @@ class MRPProduction(models.Model):
                 if finished_move.product_id.cost_method in ('fifo', 'average'):
                     finished_move.price_unit = total_cost * float_round(1 - byproduct_cost_share / 100, precision_rounding=0.0001) / qty_done
                     total_cost = finished_move.price_unit
+                    self.lot_producing_id.real_price = total_cost
                 fg_svl = finished_move.stock_valuation_layer_ids and finished_move.stock_valuation_layer_ids[0] or []
                 self._correct_svl_je(fg_svl, finished_move, total_cost)
         return res
 
     def _correct_svl_je(self, svl, stock_move, total_cost):
         account_move_id = svl.account_move_id
-        if not account_move_id:
-            stock_move.with_company(svl.company_id)._account_entry_move(svl.quantity, svl.description, svl.id, total_cost)
-        else:
-            # Change the SVl with correct cost.
-            svl.unit_cost = total_cost / (svl.quantity if svl.quantity>0 else 1)
-            svl.value = svl.unit_cost * svl.quantity
+        svl.unit_cost = total_cost / (svl.quantity if svl.quantity>0 else 1)
+        svl.value = svl.unit_cost * svl.quantity
 
+        if not account_move_id:
+            svl._validate_accounting_entries()
+        else:
+            # Change the SVl with correct cost
             account_move_id.button_draft()
             # The Valuation Layer has been changed,
             # now we have to edit the STJ Entry
