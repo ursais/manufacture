@@ -608,3 +608,9 @@ class MRPProduction(models.Model):
             confirmed_mos = self.filtered(lambda x: x.state == "confirmed")
             confirmed_mos.populate_ref_bom_tracking_items()
         return True
+
+    def copy_data(self, default=None):
+        default = dict(default or {})
+        default['bom_analytic_tracking_item_ids'] = False
+        return super(MRPProduction, self).copy_data(default=default)
+
