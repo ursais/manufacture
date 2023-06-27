@@ -12,8 +12,9 @@ class MrpBom(models.Model):
 
     def _prepare_raw_tracking_item_values(self, product_uom_qty):
         self.ensure_one()
+        product = self.product_tmpl_id or self.product_id
         bom_qty = self.product_uom_id._compute_quantity(
-                self.product_qty, self.product_id.uom_id
+                self.product_qty, product.uom_id
             ) 
         factor = product_uom_qty / bom_qty
         # Each distinct Product will be one Tracking Item
@@ -33,8 +34,9 @@ class MrpBom(models.Model):
         self.ensure_one()
         # Each distinct Work Center will be one Tracking Item
         # So multiple BOM lines for the same Work Center need to be aggregated
+        product = self.product_tmpl_id or self.product_id
         bom_qty = self.product_uom_id._compute_quantity(
-                self.product_qty, self.product_id.uom_id
+                self.product_qty, product.uom_id
             ) 
         factor = product_uom_qty / bom_qty
         lines = self.operation_ids
