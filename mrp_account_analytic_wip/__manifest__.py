@@ -9,7 +9,12 @@
     "author": "Open Source Integrators, Odoo Community Association (OCA)",
     "website": "https://github.com/OCA/manufacture",
     "license": "AGPL-3",
-    "depends": ["mrp_account_analytic", "account_analytic_wip"],
+    "depends": [
+        "mrp_account_analytic",
+        "account_analytic_wip",
+        # TODO: abusive dependency, modularity should be improved
+        "stock_inventory_revaluation_mrp",
+    ],
     "data": [
         "views/mrp_production_views.xml",
         "views/mrp_workcenter_view.xml",
