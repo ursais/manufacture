@@ -212,7 +212,7 @@ class MRPProduction(models.Model):
             #            "analytic_account_id": self.analytic_account_id.id,
         }
 
-    def clear_wip_final_old(self):
+    def clear_wip_final(self):
         """
         Add final Clear WIP JE journal entry.
         Looks up the WIP account balance and clears it using the Variance account.
@@ -284,7 +284,7 @@ class MRPProduction(models.Model):
             "credit": -amount if amount < 0.0 else 0.0,
         }
 
-    def clear_wip_final(self):
+    def clear_wip_final_boak(self):
         """
         Add final Clear WIP JE journal entry using tracked items.
         Looks up the WIP account balance and clears it using the Variance account.
