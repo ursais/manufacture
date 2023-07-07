@@ -1,6 +1,7 @@
 # Copyright (C) 2023 Open Source Integrators
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
+## this can be deleted. not needed with FIFO
 
 from odoo import api, fields, models
 

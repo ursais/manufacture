@@ -664,8 +664,12 @@ class MRPProduction(models.Model):
         )
 
         if "analytic_account_id" in vals or is_workcenter_change:
+            # From BOAK Code
+            # confirmed_mos = self.filtered(lambda x: x.state == "confirmed")
+            # confirmed_mos.populate_ref_bom_tracking_items()
             confirmed_mos = self.filtered(lambda x: x.state == "confirmed")
-            confirmed_mos.populate_ref_bom_tracking_items()
+            confirmed_mos.move_raw_ids.populate_tracking_items()
+            confirmed_mos.workorder_ids.populate_tracking_items()
         return True
 
     def copy_data(self, default=None):
