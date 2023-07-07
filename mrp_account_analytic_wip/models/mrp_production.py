@@ -432,7 +432,8 @@ class MRPProduction(models.Model):
         just after MO confirmation.
         """
         res = super().action_confirm()
-        self.populate_ref_bom_tracking_items()
+        self.mapped("move_raw_ids").populate_tracking_items(set_planned=True)
+        self.mapped("workorder_ids").populate_tracking_items(set_planned=True)
         return res
 
     def _get_matching_tracking_item(self, vals, new_tracking_items=None):
