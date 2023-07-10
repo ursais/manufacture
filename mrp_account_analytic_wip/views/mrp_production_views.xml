@@ -4,12 +4,12 @@
         <field name="model">mrp.production</field>
         <field name="inherit_id" ref="mrp.mrp_production_form_view" />
         <field name="arch" type="xml">
-            <button name="button_plan" position="after">
+            <button name="button_plan" position="after"> 
                 <button
                     name="action_post_inventory_wip"
                     type="object"
                     string="Post WIP"
-                    attrs="{'invisible': [('state', 'in', ('draft', 'confirmed', 'progress', 'done', 'to_close','cancel'))]}"
+                    attrs="{'invisible': [('state', 'in', ('draft', 'confirmed', 'done', 'to_close','cancel'))]}"
                 />
             </button>
             <div name="button_box" position="inside">

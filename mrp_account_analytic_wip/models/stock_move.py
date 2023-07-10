@@ -96,7 +96,7 @@ class StockMove(models.Model):
             "analytic_id": analytic.id,
             "product_id": self.product_id.id,
             "stock_move_id": self.id,
-            "planned_qty": planned_qty,
+            "planned_qty": self.product_uom_qty,
         }    
 
     def populate_tracking_items(self, set_planned=False):

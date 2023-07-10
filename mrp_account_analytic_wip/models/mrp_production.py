@@ -67,13 +67,14 @@ class MRPProduction(models.Model):
         Returns a recordset with the related Ttacking Items
         """
         return (
-            self.bom_analytic_tracking_item_ids
-            | self.bom_analytic_tracking_item_ids.child_ids
+            self.mapped("move_raw_ids.analytic_tracking_item_id")
+            | self.mapped("workorder_ids.analytic_tracking_item_id")
+            | self.mapped("workorder_ids.analytic_tracking_item_id.child_ids")
         )
 
     @api.depends(
-        "bom_analytic_tracking_item_ids",
-        "bom_analytic_tracking_item_ids.child_ids",
+        "move_raw_ids.analytic_tracking_item_id",
+        "workorder_ids.analytic_tracking_item_id",
     )
     def _compute_analytic_tracking_item(self):
         for mo in self:
