@@ -66,7 +66,13 @@ class MRPWorkOrder(models.Model):
         new_workorder.populate_tracking_items()
         return new_workorder
         
-        
+
+    def write(self, vals):
+        res = super().write(vals)
+        for timelog in self.time_ids:
+            timelog.generate_mrp_work_analytic_line()
+        return res
+
 class MrpWorkcenterProductivity(models.Model):
     _inherit = "mrp.workcenter.productivity"
 
