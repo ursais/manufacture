@@ -35,6 +35,7 @@ class MRPWorkOrder(models.Model):
             "product_id": self.workcenter_id.analytic_product_id.id,
             "workorder_id": self.id,
             "planned_qty": planned_qty,
+            "production_id" : self.production_id.id
         }
 
     def populate_tracking_items(self, set_planned=False):
@@ -65,13 +66,20 @@ class MRPWorkOrder(models.Model):
         new_workorder.populate_tracking_items()
         return new_workorder
         
-        
+
+    def write(self, vals):
+        res = super().write(vals)
+        for timelog in self.time_ids:
+            timelog.generate_mrp_work_analytic_line()
+        return res
+
 class MrpWorkcenterProductivity(models.Model):
     _inherit = "mrp.workcenter.productivity"
 
     def _prepare_mrp_workorder_analytic_item(self):
         values = super()._prepare_mrp_workorder_analytic_item()
         # Ensure the related Tracking Item is populated
+
         workorder = self.workorder_id
         if not workorder.analytic_tracking_item_id:
             item_vals = {
@@ -92,18 +100,18 @@ class MrpWorkcenterProductivity(models.Model):
         mos_to_post.action_post_inventory_wip()
         return res
       
-class MrpWorkcenterProductivityLoss(models.Model):
-    _inherit = "mrp.workcenter.productivity.loss"
-
-    def _convert_to_duration(self, date_start, date_stop, workcenter=False):
-        """ Convert a date range into a duration in minutes.
-        If the productivity type is not from an employee (extra hours are allow)
-        and the workcenter has a calendar, convert the dates into a duration based on
-        working hours.
-        """
-        duration = super()._convert_to_duration(date_start, date_stop, workcenter)
-        for productivity_loss in self:
-            if workcenter and workcenter.resource_calendar_id:
-                r = workcenter._get_work_days_data_batch(date_start, date_stop)[workcenter.id]['hours']
-                duration = r * 60
-        return duration
+# class MrpWorkcenterProductivityLoss(models.Model):
+#     _inherit = "mrp.workcenter.productivity.loss"
+#
+#     def _convert_to_duration(self, date_start, date_stop, workcenter=False):
+#         """ Convert a date range into a duration in minutes.
+#         If the productivity type is not from an employee (extra hours are allow)
+#         and the workcenter has a calendar, convert the dates into a duration based on
+#         working hours.
+#         """
+#         duration = super()._convert_to_duration(date_start, date_stop, workcenter)
+#         for productivity_loss in self:
+#             if workcenter and workcenter.resource_calendar_id:
+#                 r = workcenter._get_work_days_data_batch(date_start, date_stop)[workcenter.id]['hours']
+#                 duration = r * 60
+#         return duration
