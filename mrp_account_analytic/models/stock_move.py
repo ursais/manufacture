@@ -66,12 +66,13 @@ class StockMove(models.Model):
 class StockMoveLine(models.Model):
     _inherit = "stock.move.line"
 
-    def write(self, vals):
-        qty_done = vals.get("qty_done")
-        res = super().write(vals)
-        if qty_done:
-            self.mapped("move_id").generate_mrp_raw_analytic_line()
-        return res
+    # def write(self, vals):
+    #     qty_done = vals.get("qty_done")
+    #     for rec in self:
+    #         if qty_done:
+    #             rec.mapped("move_id").generate_mrp_raw_analytic_line()
+    #     res = super().write(vals)
+    #     return res
 
     @api.model
     def create(self, vals):
