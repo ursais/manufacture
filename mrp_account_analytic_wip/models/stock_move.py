@@ -97,7 +97,8 @@ class StockMove(models.Model):
             "product_id": self.product_id.id,
             "stock_move_id": self.id,
             "planned_qty": self.product_uom_qty,
-        }    
+            "production_id" : self.raw_material_production_id.id
+        }
 
     def populate_tracking_items(self, set_planned=False):
         """
@@ -113,13 +114,16 @@ class StockMove(models.Model):
         for item in to_populate:
             tracking = all_tracking.filtered(
                 lambda x: x.stock_move_id and x.product_id == item.product_id
-            )
+            )[:1]
             vals = item._prepare_tracking_item_values()
             not set_planned and vals.pop("planned_qty")
-            if tracking:
-                tracking.write(vals)
-            else:
+            if self._context.get("from_create"):
                 tracking = TrackingItem.create(vals)
+            else:
+                if tracking:
+                    tracking.write(vals)
+                else:
+                    tracking = TrackingItem.create(vals)
             item.analytic_tracking_item_id = tracking
 
     @api.model
@@ -127,15 +131,17 @@ class StockMove(models.Model):
         new_moves = super().create(vals)
         # From BOAK Code
         # new_moves.raw_material_production_id.populate_ref_bom_tracking_items()
-        new_moves.populate_tracking_items()
+        new_moves.with_context(from_create=True).populate_tracking_items()
         return new_moves
-
+    
     def write(self, vals):
         res = super().write(vals)
+        if self.raw_material_production_id.analytic_tracking_item_ids:
+            self.raw_material_production_id.analytic_tracking_item_ids._compute_actual_amount()
         # From Boak Code
         # self.raw_material_production_id.populate_ref_bom_tracking_items()
         # return res
-
+    
         if not self.env.context.get("flag_write_tracking"):
             moves = self.filtered(
                 lambda x: x.raw_material_production_id.analytic_account_id
