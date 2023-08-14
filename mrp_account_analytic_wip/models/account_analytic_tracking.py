@@ -121,6 +121,8 @@ class AnalyticTrackingItem(models.Model):
         for item in self:
             if item.state == "cancel" or item.child_ids:
                 item.actual_amount = 0.0
+            elif item.state == 'done':
+                return
             elif not item.production_id:
                 super(AnalyticTrackingItem, item)._compute_actual_amount()
             else:
