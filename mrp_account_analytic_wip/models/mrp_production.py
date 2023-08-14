@@ -359,7 +359,7 @@ class MRPProduction(models.Model):
                                 prod._prepare_clear_wip_account_move_line(
                                     item.product_id,
                                     accounts["stock_variance"],
-                                    round(item.difference_actual_amount),
+                                    round(item.difference_actual_amount, 2),
                                 )
                             ]
                         )
@@ -373,7 +373,7 @@ class MRPProduction(models.Model):
                                 prod._prepare_clear_wip_account_move_line(
                                     item.product_id,
                                     accounts["stock_variance"],
-                                    round(item.difference_actual_amount),
+                                    round(item.difference_actual_amount, 2),
                                 )
                             ]
                         )
@@ -387,7 +387,7 @@ class MRPProduction(models.Model):
             for line in move_lines:
                 debit += line['debit']
                 credit += line['credit']
-            if credit - debit:
+            if round(credit - debit, 2):
                 move_lines.extend(
                     [
                         prod._prepare_clear_wip_account_move_line(
