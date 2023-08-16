@@ -31,7 +31,7 @@ class MRPProduction(models.Model):
     )
     currency_id = fields.Many2one("res.currency", related="company_id.currency_id")
 
-    is_post_wip_automatic = fields.Boolean(default=True)
+    is_post_wip_automatic = fields.Boolean(default=False)
 
     @api.depends(
         "move_raw_ids.state",
