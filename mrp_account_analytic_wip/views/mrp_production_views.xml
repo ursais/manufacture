@@ -54,7 +54,7 @@
             </xpath>
 
             <xpath expr="//page[@name='operations']/field[@name='workorder_ids']" position="replace">
-                <field name="workorder_ids" attrs="{'readonly': ['|', '|', ('state', '=', 'cancel'), ('state', '=', 'progress'), '&amp;', ('state', '=', 'done'), ('is_locked', '=', True)]}" context="{'tree_view_ref': 'mrp.mrp_production_workorder_tree_editable_view', 'default_product_uom_id': product_uom_id, 'from_manufacturing_order': True}"/>
+                <field name="workorder_ids" attrs="{'readonly': ['|', '|', ('state', '=', 'cancel'), ('state', '=', 'progress'), '&amp;', ('state', '=', 'done'), ('is_locked', '=', True)]}" context="{'tree_view_ref': 'mrp.mrp_production_workorder_tree_editable_view', 'default_product_uom_id': product_uom_id, 'from_manufacturing_order': True, 'delete': 0}"/>
             </xpath>
 
         </field>
