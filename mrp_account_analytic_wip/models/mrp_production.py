@@ -610,13 +610,15 @@ class MRPProduction(models.Model):
                     self.lot_producing_id.real_price = total_cost
                 fg_svl = finished_move.stock_valuation_layer_ids and finished_move.stock_valuation_layer_ids[0] or []
                 self._correct_svl_je(fg_svl, finished_move, total_cost)
+
         return res
 
     def _correct_svl_je(self, svl, stock_move, total_cost):
         account_move_id = svl.account_move_id
         svl.unit_cost = total_cost / (svl.quantity if svl.quantity>0 else 1)
         svl.value = svl.unit_cost * svl.quantity
-
+        svl.remaining_value = svl.unit_cost * svl.quantity
+        
         if not account_move_id:
             svl._validate_accounting_entries()
         else:
