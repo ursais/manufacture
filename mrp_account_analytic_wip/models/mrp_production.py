@@ -4,7 +4,8 @@
 import logging
 
 from odoo import _, api, exceptions, fields, models
-from odoo.tools import float_round
+from odoo.tools import float_is_zero, float_round
+from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class MRPProduction(models.Model):
     )
     currency_id = fields.Many2one("res.currency", related="company_id.currency_id")
 
-    is_post_wip_automatic = fields.Boolean(default=True)
+    is_post_wip_automatic = fields.Boolean(default=False)
 
     @api.depends(
         "move_raw_ids.state",
@@ -66,13 +67,14 @@ class MRPProduction(models.Model):
         Returns a recordset with the related Ttacking Items
         """
         return (
-            self.bom_analytic_tracking_item_ids
-            | self.bom_analytic_tracking_item_ids.child_ids
+            self.mapped("move_raw_ids.analytic_tracking_item_id")
+            | self.mapped("workorder_ids.analytic_tracking_item_id")
+            | self.mapped("workorder_ids.analytic_tracking_item_id.child_ids")
         )
 
     @api.depends(
-        "bom_analytic_tracking_item_ids",
-        "bom_analytic_tracking_item_ids.child_ids",
+        "move_raw_ids.analytic_tracking_item_id",
+        "workorder_ids.analytic_tracking_item_id",
     )
     def _compute_analytic_tracking_item(self):
         for mo in self:
@@ -165,8 +167,9 @@ class MRPProduction(models.Model):
         """
         for order in self:
             moves_all = order.move_raw_ids
-            for move in moves_all.filtered(lambda m: m.quantity_done):
-                move.product_uom_qty = move.quantity_done
+            # comment code as if move having more then 1 qty in then if update the cousume qty it change the The cousume Qty
+            # for move in moves_all.filtered(lambda m: m.quantity_done):
+            #     move.product_uom_qty = move.quantity_done
             # Raw Material Consumption, closely following _post_inventory()
             moves_not_to_do = order.move_raw_ids.filtered(lambda x: x.state == "done")
             moves_to_do = order.move_raw_ids.filtered(
@@ -211,7 +214,7 @@ class MRPProduction(models.Model):
             #            "analytic_account_id": self.analytic_account_id.id,
         }
 
-    def clear_wip_final_old(self):
+    def clear_wip_final(self):
         """
         Add final Clear WIP JE journal entry.
         Looks up the WIP account balance and clears it using the Variance account.
@@ -283,7 +286,7 @@ class MRPProduction(models.Model):
             "credit": -amount if amount < 0.0 else 0.0,
         }
 
-    def clear_wip_final(self):
+    def clear_wip_final_boak(self):
         """
         Add final Clear WIP JE journal entry using tracked items.
         Looks up the WIP account balance and clears it using the Variance account.
@@ -301,9 +304,7 @@ class MRPProduction(models.Model):
                 move_lines.extend(
                     [
                         prod._prepare_clear_wip_account_move_line(
-                            product,
-                            acc_wip_prod,
-                            prod.product_uom_qty * product.standard_price,
+                            product, acc_wip_prod, prod.product_uom_qty * product.standard_price
                         )
                     ]
                 )
@@ -323,7 +324,7 @@ class MRPProduction(models.Model):
                             prod._prepare_clear_wip_account_move_line(
                                 item.product_id,
                                 accounts["stock_wip"],
-                                -round(item.actual_amount, 2),
+                                -round(item.actual_amount,2),
                             )
                         ]
                     )
@@ -334,7 +335,7 @@ class MRPProduction(models.Model):
                                 prod._prepare_clear_wip_account_move_line(
                                     item.product_id,
                                     accounts["stock_variance"],
-                                    round(item.difference_actual_amount, 2),
+                                    round(item.difference_actual_amount,2)
                                 )
                             ]
                         )
@@ -348,7 +349,7 @@ class MRPProduction(models.Model):
                             prod._prepare_clear_wip_account_move_line(
                                 item.product_id,
                                 accounts["stock_wip"],
-                                -round(item.actual_amount, 2),
+                                -round(item.actual_amount,2),
                             )
                         ]
                     )
@@ -387,15 +388,15 @@ class MRPProduction(models.Model):
             debit = 0.0
             credit = 0.0
             for line in move_lines:
-                debit += line["debit"]
-                credit += line["credit"]
+                debit += line['debit']
+                credit += line['credit']
             if credit - debit:
                 move_lines.extend(
                     [
                         prod._prepare_clear_wip_account_move_line(
                             prod.product_id,
                             accounts["stock_variance"],
-                            -round(debit - credit, 2),
+                            -round(debit-credit, 2),
                         )
                     ]
                 )
@@ -433,7 +434,8 @@ class MRPProduction(models.Model):
         just after MO confirmation.
         """
         res = super().action_confirm()
-        self.populate_ref_bom_tracking_items()
+        self.mapped("move_raw_ids").populate_tracking_items(set_planned=True)
+        self.mapped("workorder_ids").populate_tracking_items(set_planned=True)
         return res
 
     def _get_matching_tracking_item(self, vals, new_tracking_items=None):
@@ -530,12 +532,8 @@ class MRPProduction(models.Model):
             reference_bom = production.product_id.cost_reference_bom_id
             if not reference_bom:
                 continue
-            ref_raw_vals = reference_bom._prepare_raw_tracking_item_values(
-                production.product_uom_qty
-            )
-            ref_ops_vals = reference_bom._prepare_ops_tracking_item_values(
-                production.product_uom_qty
-            )
+            ref_raw_vals = reference_bom._prepare_raw_tracking_item_values(production.product_uom_qty)
+            ref_ops_vals = reference_bom._prepare_ops_tracking_item_values(production.product_uom_qty)
             ref_items = production._populate_ref_bom_tracking_items(
                 ref_raw_vals + ref_ops_vals
             )
@@ -577,7 +575,70 @@ class MRPProduction(models.Model):
             # tracking.clear_wip_journal_entries()
             # Raw Material - clear final WIP and post Variances
             mfg_done.clear_wip_final()
+
+        # Below code will fix the FIFO SN costing for Raw material, FG and By product
+        #NOT NEEDED FOR CABINTOUCH
+        # if self.product_id.cost_method =='fifo':
+        #     # recalculate all JE for last MO
+        #     finished_move = self.move_finished_ids.filtered(
+        #         lambda x: x.product_id == self.product_id and x.state == 'done' and x.quantity_done > 0)
+        #     consumed_moves = self.move_raw_ids
+        #     if finished_move:
+        #         work_center_cost = 0
+        #         finished_move.ensure_one()
+        #         fg_svl_ids = finished_move.sudo().stock_valuation_layer_ids
+        #         for work_order in self.workorder_ids:
+        #             time_lines = work_order.time_ids.filtered(lambda t: t.date_end and not t.cost_already_recorded)
+        #             work_center_cost += work_order._cal_cost(times=time_lines)
+        #             time_lines.write({'cost_already_recorded': True})
+        #         qty_done = finished_move.product_uom._compute_quantity(
+        #             finished_move.quantity_done, finished_move.product_id.uom_id)
+        #         extra_cost = self.extra_cost * qty_done
+        #         total_cost = - sum(consumed_moves.sudo().stock_valuation_layer_ids.mapped('value')) + work_center_cost + extra_cost
+        #         byproduct_moves = self.move_byproduct_ids.filtered(lambda m: m.state == 'done' and m.quantity_done > 0)
+        #         byproduct_cost_share = 0
+        #         for byproduct in byproduct_moves:
+        #             if byproduct.cost_share == 0:
+        #                 continue
+        #             byproduct_cost_share += byproduct.cost_share
+        #             if byproduct.product_id.cost_method in ('fifo', 'average'):
+        #                 byproduct.price_unit = total_cost * byproduct.cost_share / 100 / byproduct.product_uom._compute_quantity(byproduct.quantity_done, byproduct.product_id.uom_id)
+        #                 by_product_svl = byproduct.sudo().stock_valuation_layer_ids
+        #                 self._correct_svl_je(by_product_svl, byproduct, byproduct.price_unit)
+        #         if finished_move.product_id.cost_method in ('fifo', 'average'):
+        #             finished_move.price_unit = total_cost * float_round(1 - byproduct_cost_share / 100, precision_rounding=0.0001) / qty_done
+        #             total_cost = finished_move.price_unit
+        #             self.lot_producing_id.real_price = total_cost
+        #         fg_svl = finished_move.stock_valuation_layer_ids and finished_move.stock_valuation_layer_ids[0] or []
+        #         self._correct_svl_je(fg_svl, finished_move, total_cost)
+        if self.analytic_account_id:
+            self.analytic_account_id.line_ids.write({'manufacturing_order_id':self.id})
         return res
+    
+    # NOT NEEDED FOR CABIN TOUCH
+    # def _correct_svl_je(self, svl, stock_move, total_cost):
+    #     account_move_id = svl.account_move_id
+    #     svl.unit_cost = total_cost / (svl.quantity if svl.quantity>0 else 1)
+    #     svl.value = svl.unit_cost * svl.quantity
+    #     svl.remaining_value = svl.unit_cost * svl.quantity
+    #
+    #     if not account_move_id:
+    #         svl._validate_accounting_entries()
+    #     else:
+    #         # Change the SVl with correct cost
+    #         account_move_id.button_draft()
+    #         # The Valuation Layer has been changed,
+    #         # now we have to edit the STJ Entry
+    #         for ji_id in account_move_id.line_ids:
+    #             if ji_id.credit != 0:
+    #                 ji_id.with_context(check_move_validity=False).write(
+    #                     {"credit": total_cost}
+    #                 )
+    #             else:
+    #                 ji_id.with_context(check_move_validity=False).write(
+    #                     {"debit": total_cost}
+    #                 )
+    #         account_move_id.action_post()
 
     def action_cancel(self):
         res = super().action_cancel()
@@ -611,11 +672,82 @@ class MRPProduction(models.Model):
         )
 
         if "analytic_account_id" in vals or is_workcenter_change:
+            # From BOAK Code
+            # confirmed_mos = self.filtered(lambda x: x.state == "confirmed")
+            # confirmed_mos.populate_ref_bom_tracking_items()
             confirmed_mos = self.filtered(lambda x: x.state == "confirmed")
-            confirmed_mos.populate_ref_bom_tracking_items()
+            confirmed_mos.move_raw_ids.populate_tracking_items()
+            confirmed_mos.workorder_ids.populate_tracking_items()
         return True
 
     def copy_data(self, default=None):
         default = dict(default or {})
-        default["bom_analytic_tracking_item_ids"] = False
+        default['bom_analytic_tracking_item_ids'] = False
         return super(MRPProduction, self).copy_data(default=default)
+
+    def _create_workorder(self):
+        res = super()._create_workorder()
+        for production in self:
+            for workorder in production.workorder_ids:
+                workorder.duration_planned = workorder.duration_expected
+        return res
+
+    def _check_sn_uniqueness(self):
+        """ Alert the user if the serial number as already been consumed/produced 
+            WIP Module is also creating other JE with Virtual / Production Location.
+            We need to bypass the check for Current Production, there can be multiple moves with Virtual Production for same SN in WIP module.
+        """
+        if self.product_tracking == 'serial' and self.lot_producing_id:
+            if self._is_finished_sn_already_produced(self.lot_producing_id):
+                raise UserError(_('This serial number for product %s has already been produced', self.product_id.name))
+
+        for move in self.move_finished_ids:
+            if move.has_tracking != 'serial' or move.product_id == self.product_id:
+                continue
+            for move_line in move.move_line_ids:
+                if self._is_finished_sn_already_produced(move_line.lot_id, excluded_sml=move_line):
+                    raise UserError(_('The serial number %(number)s used for byproduct %(product_name)s has already been produced',
+                                      number=move_line.lot_id.name, product_name=move_line.product_id.name))
+
+        for move in self.move_raw_ids:
+            if move.has_tracking != 'serial':
+                continue
+            for move_line in move.move_line_ids:
+                if float_is_zero(move_line.qty_done, precision_rounding=move_line.product_uom_id.rounding):
+                    continue
+                message = _('The serial number %(number)s used for component %(component)s has already been consumed',
+                    number=move_line.lot_id.name,
+                    component=move_line.product_id.name)
+                co_prod_move_lines = self.move_raw_ids.move_line_ids
+
+                # Check presence of same sn in previous productions
+                duplicates = self.env['stock.move.line'].search_count([
+                    ('lot_id', '=', move_line.lot_id.id),
+                    ('qty_done', '=', 1),
+                    ('state', '=', 'done'),
+                    ('location_dest_id.usage', '=', 'production'),
+                    ('production_id', '!=', False),
+                    ('production_id', '!=',self.id)  #In this core odoo method only this change has been added.
+                ])
+                if duplicates:
+                    # Maybe some move lines have been compensated by unbuild
+                    duplicates_returned = move.product_id._count_returned_sn_products(move_line.lot_id)
+                    removed = self.env['stock.move.line'].search_count([
+                        ('lot_id', '=', move_line.lot_id.id),
+                        ('state', '=', 'done'),
+                        ('location_dest_id.scrap_location', '=', True)
+                    ])
+                    unremoved = self.env['stock.move.line'].search_count([
+                        ('lot_id', '=', move_line.lot_id.id),
+                        ('state', '=', 'done'),
+                        ('location_id.scrap_location', '=', True),
+                        ('location_dest_id.scrap_location', '=', False),
+                    ])
+                    # Either removed or unbuild
+                    if not ((duplicates_returned or removed) and duplicates - duplicates_returned - removed + unremoved == 0):
+                        raise UserError(message)
+                # Check presence of same sn in current production
+                duplicates = co_prod_move_lines.filtered(lambda ml: ml.qty_done and ml.lot_id == move_line.lot_id) - move_line
+                if duplicates:
+                    raise UserError(message)
+

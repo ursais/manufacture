@@ -4,12 +4,12 @@
         <field name="model">mrp.production</field>
         <field name="inherit_id" ref="mrp.mrp_production_form_view" />
         <field name="arch" type="xml">
-            <button name="button_plan" position="after">
+            <button name="button_plan" position="after"> 
                 <button
                     name="action_post_inventory_wip"
                     type="object"
                     string="Post WIP"
-                    attrs="{'invisible': [('state', 'in', ('draft', 'confirmed', 'progress', 'done', 'to_close','cancel'))]}"
+                    attrs="{'invisible': [('state', 'in', ('draft', 'confirmed', 'done', 'to_close','cancel'))]}"
                 />
             </button>
             <div name="button_box" position="inside">
@@ -53,15 +53,8 @@
                 <field name="qty_planned" invisible="1" />
             </xpath>
 
-            <xpath
-                expr="//page[@name='operations']/field[@name='workorder_ids']"
-                position="replace"
-            >
-                <field
-                    name="workorder_ids"
-                    attrs="{'readonly': ['|', '|', ('state', '=', 'cancel'), ('state', '=', 'progress'), '&amp;', ('state', '=', 'done'), ('is_locked', '=', True)]}"
-                    context="{'tree_view_ref': 'mrp.mrp_production_workorder_tree_editable_view', 'default_product_uom_id': product_uom_id, 'from_manufacturing_order': True}"
-                />
+            <xpath expr="//page[@name='operations']/field[@name='workorder_ids']" position="replace">
+                <field name="workorder_ids" attrs="{'readonly': ['|', ('state', '=', 'cancel'), '&amp;', ('state', '=', 'done'), ('is_locked', '=', True)]}" context="{'tree_view_ref': 'mrp.mrp_production_workorder_tree_editable_view', 'default_product_uom_id': product_uom_id, 'from_manufacturing_order': True}"  options="{'delete': [('state', '=', 'draft')]}"/>
             </xpath>
 
         </field>
