@@ -115,13 +115,14 @@ class AnalyticTrackingItem(models.Model):
         "product_id.standard_price",
         "actual_stock_move_ids",
         "actual_workorder_ids",
+        "stock_move_id"
     )
     def _compute_actual_amount(self):
         currency = self.env.company.currency_id
         for item in self:
             if item.state == "cancel" or item.child_ids:
                 item.actual_amount = 0.0
-            elif item.state == "done":
+            elif item.state == 'done':
                 return
             elif not item.production_id:
                 super(AnalyticTrackingItem, item)._compute_actual_amount()
@@ -129,6 +130,11 @@ class AnalyticTrackingItem(models.Model):
                 # Specific Actuals calculation on MOs, using current cost
                 # instead of the historical cost stored in Anaytic Items
                 unit_cost = item.product_id.standard_price
+                if item.stock_move_id.product_id.tracking=='serial' and \
+                    item.stock_move_id.raw_material_production_id:
+                    # Calculate actual cost based on real price of SN instead of standard.
+                    unit_cost = sum(item.stock_move_id.mapped("move_line_ids").mapped("lot_id").mapped("real_price"))
+                workcenter = item.workcenter_id or item.workorder_id.workcenter_id
                 items = item | item.parent_id
                 raw_qty = sum(items.actual_stock_move_ids.mapped("quantity_done"))
                 ops_qty = sum(items.actual_workorder_ids.mapped("duration")) / 60
