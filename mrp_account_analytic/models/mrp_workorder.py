@@ -34,10 +34,11 @@ class MrpWorkcenterProductivity(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        timelog = super().create(vals_list)
-        timelog_with_date_end = timelog.filtered("date_end")
-        timelog_with_date_end.generate_mrp_work_analytic_line()
-        return timelog
+        timelogs = super().create(vals_list)
+        for i, timelog in enumerate(timelogs):
+            if vals_list[i].get("date_end"):
+                timelog.generate_mrp_work_analytic_line()
+        return timelogs
 
     def write(self, vals):
         res = super().write(vals)

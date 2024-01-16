@@ -1,5 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+## this can be deleted. not needed with FIFO
+
 from odoo import fields, models
 
 

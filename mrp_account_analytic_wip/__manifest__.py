@@ -12,6 +12,8 @@
     "depends": [
         "mrp_account_analytic",
         "account_analytic_wip",
+        # TODO: abusive dependency, modularity should be improved
+        # "stock_inventory_revaluation_mrp",
     ],
     "data": [
         "views/mrp_production_views.xml",

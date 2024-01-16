@@ -57,24 +57,27 @@ class StockMove(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         res = super().create(vals_list)
-        sm_has_qty_done = res.filtered("quantity_done")
-        sm_has_qty_done.generate_mrp_raw_analytic_line()
+        for i, move in enumerate(res):
+            if vals_list[i].get("quantity_done"):
+                move.generate_mrp_raw_analytic_line()
         return res
 
 
 class StockMoveLine(models.Model):
     _inherit = "stock.move.line"
 
-    def write(self, vals):
-        qty_done = vals.get("qty_done")
-        res = super().write(vals)
-        if qty_done:
-            self.mapped("move_id").generate_mrp_raw_analytic_line()
-        return res
+    # def write(self, vals):
+    #     qty_done = vals.get("qty_done")
+    #     for rec in self:
+    #         if qty_done:
+    #             rec.mapped("move_id").generate_mrp_raw_analytic_line()
+    #     res = super().write(vals)
+    #     return res
 
     @api.model_create_multi
     def create(self, vals_list):
         res = super().create(vals_list)
-        sml_has_qty_done = res.filtered("qty_done")
-        sml_has_qty_done.mapped("move_id").generate_mrp_raw_analytic_line()
+        for i, line in enumerate(res):
+            if vals_list[i].get("qty_done"):
+                line.mapped("move_id").generate_mrp_raw_analytic_line()
         return res

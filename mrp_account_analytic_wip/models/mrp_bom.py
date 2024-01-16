@@ -1,6 +1,7 @@
 # Copyright (C) 2023 Open Source Integrators
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
+## this can be deleted. not needed with FIFO
 
 from odoo import api, fields, models
 
@@ -14,8 +15,8 @@ class MrpBom(models.Model):
         self.ensure_one()
         product = self.product_tmpl_id or self.product_id
         bom_qty = self.product_uom_id._compute_quantity(
-            self.product_qty, product.uom_id
-        )
+                self.product_qty, product.uom_id
+            ) 
         factor = product_uom_qty / bom_qty
         # Each distinct Product will be one Tracking Item
         # So multiple BOM lines for the same Product need to be aggregated
@@ -25,8 +26,7 @@ class MrpBom(models.Model):
                 "product_id": product.id,
                 "planned_qty": sum(
                     x.product_qty for x in lines if x.product_id == product
-                )
-                * factor,
+                ) * factor,
             }
             for product in lines.product_id
         ]
@@ -37,8 +37,8 @@ class MrpBom(models.Model):
         # So multiple BOM lines for the same Work Center need to be aggregated
         product = self.product_tmpl_id or self.product_id
         bom_qty = self.product_uom_id._compute_quantity(
-            self.product_qty, product.uom_id
-        )
+                self.product_qty, product.uom_id
+            ) 
         factor = product_uom_qty / bom_qty
         lines = self.operation_ids
         return [
@@ -47,8 +47,7 @@ class MrpBom(models.Model):
                 "workcenter_id": workcenter.id,
                 "planned_qty": sum(
                     x.time_cycle for x in lines if x.workcenter_id == workcenter
-                )
-                * factor
+                ) * factor
                 / 60,
             }
             for workcenter in lines.workcenter_id
