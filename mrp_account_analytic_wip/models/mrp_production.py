@@ -31,7 +31,7 @@ class MRPProduction(models.Model):
     )
     currency_id = fields.Many2one("res.currency", related="company_id.currency_id")
 
-    is_post_wip_automatic = fields.Boolean(default=False)
+    is_post_wip_automatic = fields.Boolean(default=True)
 
     @api.depends(
         "move_raw_ids.state",
@@ -106,7 +106,11 @@ class MRPProduction(models.Model):
             )
             extra_cost = self.extra_cost * qty_done
             total_cost = (
-                -sum(consumed_moves.sudo().stock_valuation_layer_ids.mapped("value"))
+                -sum(
+                    consumed_moves.sudo()
+                    .stock_valuation_layer_ids.filtered(lambda svl: svl.quantity < 0)
+                    .mapped("value")
+                )
                 + work_center_cost
                 + extra_cost
             )
@@ -577,7 +581,7 @@ class MRPProduction(models.Model):
             mfg_done.clear_wip_final()
 
         # Below code will fix the FIFO SN costing for Raw material, FG and By product
-        #NOT NEEDED FOR CABINTOUCH
+        #NOT NEEDED FOR CABINOTCH
         # if self.product_id.cost_method =='fifo':
         #     # recalculate all JE for last MO
         #     finished_move = self.move_finished_ids.filtered(
@@ -615,7 +619,7 @@ class MRPProduction(models.Model):
             self.analytic_account_id.line_ids.write({'manufacturing_order_id':self.id})
         return res
     
-    # NOT NEEDED FOR CABIN TOUCH
+    # NOT NEEDED FOR CABINOTCH
     # def _correct_svl_je(self, svl, stock_move, total_cost):
     #     account_move_id = svl.account_move_id
     #     svl.unit_cost = total_cost / (svl.quantity if svl.quantity>0 else 1)
@@ -682,7 +686,7 @@ class MRPProduction(models.Model):
 
     def copy_data(self, default=None):
         default = dict(default or {})
-        default['bom_analytic_tracking_item_ids'] = False
+        default["bom_analytic_tracking_item_ids"] = False
         return super(MRPProduction, self).copy_data(default=default)
 
     def _create_workorder(self):
