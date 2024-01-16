@@ -25,19 +25,20 @@ class MrpWorkcenterProductivity(models.Model):
             "amount": -self.duration / 60 * self.workcenter_id.costs_hour,
         }
 
-    def generate_mrp_work_analytic_line(self):   
+    def generate_mrp_work_analytic_line(self):
         AnalyticLine = self.env["account.analytic.line"].sudo()
         for timelog in self:
             line_vals = timelog._prepare_mrp_workorder_analytic_item()
             analytic_line = AnalyticLine.create(line_vals)
             analytic_line.on_change_unit_amount()
 
-    @api.model
-    def create(self, vals):
-        timelog = super().create(vals)
-        if vals.get("date_end"):
-            timelog.generate_mrp_work_analytic_line()
-        return timelog
+    @api.model_create_multi
+    def create(self, vals_list):
+        timelogs = super().create(vals_list)
+        for i, timelog in enumerate(timelogs):
+            if vals_list[i].get("date_end"):
+                timelog.generate_mrp_work_analytic_line()
+        return timelogs
 
     def write(self, vals):
         res = super().write(vals)

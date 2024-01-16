@@ -10,6 +10,15 @@ class StockMove(models.Model):
 
     qty_planned = fields.Float()
 
+    # Store related Tracking Item, for computation efficiency
+    analytic_tracking_item_id = fields.Many2one(
+        "account.analytic.tracking.item",
+        string="Tracking Item",
+        copy=True
+        # Copy Tracking item, so that when a move is split,
+        # it still related to the same Tracking Item
+    )
+
     # Improve the unconsume descrition on SVL and JE
     # (originally "Correction of False (modification of past move)")
     # and add link to the MO Tracking Items
@@ -56,15 +65,6 @@ class StockMove(models.Model):
                 move.should_consume_qty = 0
         return res
 
-    # Store related Tracking Item, for computation efficiency
-    analytic_tracking_item_id = fields.Many2one(
-        "account.analytic.tracking.item",
-        string="Tracking Item",
-        copy=True
-        # Copy Tracking item, so that when a move is split,
-        # it still related to the same Tracking Item
-    )
-
     def _prepare_mrp_raw_material_analytic_line(self):
         values = super()._prepare_mrp_raw_material_analytic_line()
         # Ensure the related Tracking Item is populated
@@ -80,14 +80,13 @@ class StockMove(models.Model):
         values["analytic_tracking_item_id"] = self.analytic_tracking_item_id.id
         return values
 
-    # From Boak Code
     def generate_mrp_raw_analytic_line(self):
+        # From Boak Code
         res = super().generate_mrp_raw_analytic_line()
         # When recording actuals, consider posting WIP immediately
         mos_to_post = self.raw_material_production_id.filtered("is_post_wip_automatic")
         mos_to_post.action_post_inventory_wip()
         return res
-    # End From Boak Code
 
     def _prepare_tracking_item_values(self):
         analytic = self.raw_material_production_id.analytic_account_id
@@ -126,9 +125,9 @@ class StockMove(models.Model):
                     tracking = TrackingItem.create(vals)
             item.analytic_tracking_item_id = tracking
 
-    @api.model
-    def create(self, vals):
-        new_moves = super().create(vals)
+    @api.model_create_multi
+    def create(self, vals_list):
+        new_moves = super().create(vals_list)
         # From BOAK Code
         # new_moves.raw_material_production_id.populate_ref_bom_tracking_items()
         new_moves.with_context(from_create=True).populate_tracking_items()
