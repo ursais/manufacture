@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+
+    <record id="view_repair_order_tree_inherit_repair_refurbish" model="ir.ui.view">
+        <field name="name">repair.order.tree</field>
+        <field name="model">repair.order</field>
+        <field name="inherit_id" ref="repair.view_repair_order_tree" />
+        <field name="arch" type="xml">
+            <field name="product_id" position="after">
+                <field name="refurbish_product_id" />
+            </field>
+        </field>
+    </record>
+
+    <record id="view_repair_order_form_inherit_repair_refurbish" model="ir.ui.view">
+        <field name="name">repair.order.form</field>
+        <field name="model">repair.order</field>
+        <field name="inherit_id" ref="repair.view_repair_order_form" />
+        <field name="arch" type="xml">
+            <field name="under_warranty" position="after">
+                <field name="to_refurbish" />
+            </field>
+            <xpath
+                expr="//group[@name='locations']//field[@name='location_id']"
+                position="after"
+            >
+                <field
+                    name="location_dest_id"
+                    invisible="not to_refurbish"
+                    required="to_refurbish"
+                />
+            </xpath>
+
+            <xpath expr="//page[@name='repair_notes']" position="after">
+                <page string="Refurbish" name="refurbish" invisible="not to_refurbish">
+                    <group>
+                        <field name="refurbish_product_id" />
+                        <field
+                            name="refurbish_lot_id"
+                            context="{'default_product_id': refurbish_product_id, 'default_company_id': company_id}"
+                            groups="stock.group_production_lot"
+                        />
+                        <field
+                            name="refurbish_location_dest_id"
+                            invisible="not to_refurbish"
+                        />
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record
+        id="view_repair_order_form_filter_inherit_repair_refurbish"
+        model="ir.ui.view"
+    >
+        <field name="name">repair.order.select</field>
+        <field name="model">repair.order</field>
+        <field name="inherit_id" ref="repair.view_repair_order_form_filter" />
+        <field name="arch" type="xml">
+            <field name="product_id" position="after">
+                <field name="to_refurbish" />
+                <field name="refurbish_product_id" />
+            </field>
+        </field>
+    </record>
+</odoo>
