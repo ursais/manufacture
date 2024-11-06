@@ -139,22 +139,22 @@ class AnalyticTrackingItem(models.Model):
                 actual = currency.round(unit_cost * (raw_qty + ops_qty))
                 item.actual_amount = actual
         return
-
-    @api.depends(
-        "analytic_line_ids.amount",
-        "parent_id.analytic_line_ids.amount",
-        "planned_amount",
-        "accounted_amount",
-        "state",
-        "child_ids",
-    )
-    def _compute_actual_amounts(self):
-        res = super()._compute_actual_amounts()
-        for item in self:
-            doing = item.state == "draft"
-            remain = max(0, item.requested_amount - item.actual_amount) if doing else 0
-            item.remaining_actual_amount = remain
-        return res
+    #
+    # @api.depends(
+    #     "analytic_line_ids.amount",
+    #     "parent_id.analytic_line_ids.amount",
+    #     "planned_amount",
+    #     "accounted_amount",
+    #     "state",
+    #     "child_ids",
+    # )
+    # def _compute_actual_amounts(self):
+    #     res = super()._compute_actual_amounts()
+    #     for item in self:
+    #         doing = item.state == "draft"
+    #         remain = max(0, item.requested_amount - item.actual_amount) if doing else 0
+    #         item.remaining_actual_amount = remain
+    #     return res
 
     def _populate_abcost_tracking_item(self):
         res = super()._populate_abcost_tracking_item()
