@@ -59,19 +59,19 @@ class MRPWorkOrder(models.Model):
             else:
                 tracking = TrackingItem.create(vals)
             item.analytic_tracking_item_id = tracking
-            
+
     @api.model_create_multi
     def create(self, vals):
         new_workorder = super().create(vals)
         new_workorder.populate_tracking_items()
         return new_workorder
-        
 
-    def write(self, vals):
-        res = super().write(vals)
-        for timelog in self.time_ids:
-            timelog.generate_mrp_work_analytic_line()
-        return res
+    #
+    # def write(self, vals):
+    #     res = super().write(vals)
+    #     for timelog in self.time_ids.filtered(lambda l : l.date_end):
+    #         timelog.generate_mrp_work_analytic_line()
+    #     return res
 
 class MrpWorkcenterProductivity(models.Model):
     _inherit = "mrp.workcenter.productivity"
@@ -99,7 +99,7 @@ class MrpWorkcenterProductivity(models.Model):
         mos_to_post = self.production_id.filtered("is_post_wip_automatic")
         mos_to_post.action_post_inventory_wip()
         return res
-      
+
 # class MrpWorkcenterProductivityLoss(models.Model):
 #     _inherit = "mrp.workcenter.productivity.loss"
 #

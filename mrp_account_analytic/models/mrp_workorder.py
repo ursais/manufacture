@@ -35,10 +35,12 @@ class MrpWorkcenterProductivity(models.Model):
     @api.model
     def create(self, vals):
         timelog = super().create(vals)
-        timelog.generate_mrp_work_analytic_line()
+        if vals.get("date_end"):
+            timelog.generate_mrp_work_analytic_line()
         return timelog
 
     def write(self, vals):
         res = super().write(vals)
-        self.generate_mrp_work_analytic_line()
+        if vals.get("date_end") or vals.get("duration") or 'duration' in vals:
+            self.generate_mrp_work_analytic_line()
         return res
