@@ -12,11 +12,11 @@ class AnalyticTrackingItem(models.Model):
     _inherit = "account.analytic.tracking.item"
 
     stock_move_id = fields.Many2one(
-        "stock.move", string="Stock Move", ondelete="cascade"
+        "stock.move", string="Stock Move", ondelete="cascade", index=True
     )
     # FIXME: remove workorder, as Tracking Items should be per Work Center
     workorder_id = fields.Many2one(
-        "mrp.workorder", string="Work Order", ondelete="cascade"
+        "mrp.workorder", string="Work Order", ondelete="cascade", index=True
     )
     workcenter_id = fields.Many2one(
         "mrp.workcenter", string="Work Center", ondelete="cascade"
