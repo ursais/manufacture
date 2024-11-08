@@ -112,7 +112,6 @@ class AnalyticTrackingItem(models.Model):
         "parent_id.analytic_line_ids.amount",
         "state",
         "child_ids",
-        "product_id.standard_price",
         "actual_stock_move_ids",
         "actual_workorder_ids",
         "stock_move_id"
