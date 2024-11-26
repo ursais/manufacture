@@ -610,7 +610,13 @@ class MRPProduction(models.Model):
                     self.lot_producing_id.real_price = total_cost
                 fg_svl = finished_move.stock_valuation_layer_ids and finished_move.stock_valuation_layer_ids[0] or []
                 self._correct_svl_je(fg_svl, finished_move, total_cost)
-
+            wip_je = self.env["account.move"].search([("ref", "ilike", self.name)])
+            wip_lines = wip_je.line_ids.filtered(
+                lambda l: l.account_id.code == self.company_id.wip_account_id.code
+            )
+            wip_lines.filtered(lambda l: l.reconciled).remove_move_reconcile()
+            wip_lines.filtered(lambda l: l.reconciled).reconciled = False
+            wip_lines.reconcile()
         return res
 
     def _correct_svl_je(self, svl, stock_move, total_cost):
@@ -618,7 +624,7 @@ class MRPProduction(models.Model):
         svl.unit_cost = total_cost / (svl.quantity if svl.quantity>0 else 1)
         svl.value = svl.unit_cost * svl.quantity
         svl.remaining_value = svl.unit_cost * svl.quantity
-        
+
         if not account_move_id:
             svl._validate_accounting_entries()
         else:
@@ -635,6 +641,7 @@ class MRPProduction(models.Model):
                     ji_id.with_context(check_move_validity=False).write(
                         {"debit": total_cost}
                     )
+
             account_move_id.action_post()
 
     def action_cancel(self):
@@ -690,7 +697,7 @@ class MRPProduction(models.Model):
         return res
 
     def _check_sn_uniqueness(self):
-        """ Alert the user if the serial number as already been consumed/produced 
+        """ Alert the user if the serial number as already been consumed/produced
             WIP Module is also creating other JE with Virtual / Production Location.
             We need to bypass the check for Current Production, there can be multiple moves with Virtual Production for same SN in WIP module.
         """
