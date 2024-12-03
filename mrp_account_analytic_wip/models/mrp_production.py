@@ -612,7 +612,7 @@ class MRPProduction(models.Model):
                 self._correct_svl_je(fg_svl, finished_move, total_cost)
             wip_je = self.env["account.move"].search([("ref", "ilike", self.name)])
             wip_lines = wip_je.line_ids.filtered(
-                lambda l: l.account_id.code == self.company_id.wip_account_id.code
+                lambda l: l.account_id.code == self.company_id.wip_account_id.code and not l.reconciled
             )
             wip_lines.filtered(lambda l: l.reconciled).remove_move_reconcile()
             wip_lines.filtered(lambda l: l.reconciled).reconciled = False
