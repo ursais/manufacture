@@ -50,7 +50,7 @@ class MRPProduction(models.Model):
         res = super()._compute_state()
         for production in self:
             all_finished_moves_done = all(
-                move.state == "done" for move in production.move_finished_ids
+                move.state in ("done","cancel") for move in production.move_finished_ids
             )
             all_workorders_done = not production.workorder_ids or all(
                 wo.state in ("done", "cancel") for wo in production.workorder_ids
