@@ -97,7 +97,7 @@ class MrpWorkcenterProductivity(models.Model):
         res = super().generate_mrp_work_analytic_line()
         # When recording actuals, consider posting WIp immedately
         mos_to_post = self.production_id.filtered("is_post_wip_automatic")
-        mos_to_post.action_post_inventory_wip()
+        mos_to_post.sudo().action_post_inventory_wip()
         return res
       
 # class MrpWorkcenterProductivityLoss(models.Model):
