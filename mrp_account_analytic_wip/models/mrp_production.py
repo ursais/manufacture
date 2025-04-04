@@ -603,13 +603,15 @@ class MRPProduction(models.Model):
                     if byproduct.product_id.cost_method in ('fifo', 'average'):
                         byproduct.price_unit = total_cost * byproduct.cost_share / 100 / byproduct.product_uom._compute_quantity(byproduct.quantity_done, byproduct.product_id.uom_id)
                         by_product_svl = byproduct.sudo().stock_valuation_layer_ids
-                        self._correct_svl_je(by_product_svl, byproduct, byproduct.price_unit)
+                        if by_product_svl:
+                            self._correct_svl_je(by_product_svl, byproduct, byproduct.price_unit)
                 if finished_move.product_id.cost_method in ('fifo', 'average'):
                     finished_move.price_unit = total_cost * float_round(1 - byproduct_cost_share / 100, precision_rounding=0.0001) / qty_done
                     total_cost = finished_move.price_unit
                     self.lot_producing_id.real_price = total_cost
                 fg_svl = finished_move.stock_valuation_layer_ids and finished_move.stock_valuation_layer_ids[0] or []
-                self._correct_svl_je(fg_svl, finished_move, total_cost)
+                if fg_svl:
+                    self._correct_svl_je(fg_svl, finished_move, total_cost)
             wip_je = self.env["account.move"].search([("ref", "ilike", self.name)])
             wip_lines = wip_je.line_ids.filtered(
                 lambda l: l.account_id.code == self.company_id.wip_account_id.code and not l.reconciled
