@@ -274,7 +274,7 @@ class MRPProduction(models.Model):
             )
             final_acc_move = final_prod_move.account_move_ids[:1]
             if move_lines and final_acc_move:
-                wip_move = final_acc_move.copy(
+                wip_move = final_acc_move.sudo().copy(
                     {
                         "ref": _("%s Clear WIP") % (prod.name),
                         "line_ids": [(0, 0, x) for x in move_lines or [] if x],
