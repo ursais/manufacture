@@ -60,7 +60,8 @@ class StockMove(models.Model):
     analytic_tracking_item_id = fields.Many2one(
         "account.analytic.tracking.item",
         string="Tracking Item",
-        copy=True
+        copy=True,
+        index=True
         # Copy Tracking item, so that when a move is split,
         # it still related to the same Tracking Item
     )
@@ -133,7 +134,7 @@ class StockMove(models.Model):
         # new_moves.raw_material_production_id.populate_ref_bom_tracking_items()
         new_moves.with_context(from_create=True).populate_tracking_items()
         return new_moves
-    
+
     def write(self, vals):
         res = super().write(vals)
         if self.raw_material_production_id.analytic_tracking_item_ids:
@@ -141,7 +142,7 @@ class StockMove(models.Model):
         # From Boak Code
         # self.raw_material_production_id.populate_ref_bom_tracking_items()
         # return res
-    
+
         if not self.env.context.get("flag_write_tracking"):
             moves = self.filtered(
                 lambda x: x.raw_material_production_id.analytic_account_id
