@@ -7,7 +7,11 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='ref']" position="after">
                 <field name="batch_bom_id" readonly="1" invisible="not batch_bom_id" />
-                <field name="batch_production_id" readonly="1" invisible="1" />
+                <field
+                    name="batch_production_id"
+                    readonly="1"
+                    invisible="not batch_production_id"
+                />
             </xpath>
         </field>
     </record>
