@@ -4,14 +4,26 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 16.0\n"
+"Project-Id-Version: Odoo Server 17.0+e\n"
 "Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-04-13 10:11+0000\n"
+"PO-Revision-Date: 2026-04-13 10:11+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: \n"
 "Plural-Forms: \n"
+
+#. module: mrp_bom_version
+#: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_form_view
+msgid "<span class=\"o_form_label\" invisible=\"not end_date\">to</span>"
+msgstr ""
+
+#. module: mrp_bom_version
+#: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_form_view
+msgid "<span class=\"o_form_label\">Active from</span>"
+msgstr ""
 
 #. module: mrp_bom_version
 #: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_form_view
@@ -63,6 +75,16 @@ msgid "Config Settings"
 msgstr ""
 
 #. module: mrp_bom_version
+#: model:ir.model.fields,help:mrp_bom_version.field_mrp_bom__start_date
+msgid "Date when this BOM became active"
+msgstr ""
+
+#. module: mrp_bom_version
+#: model:ir.model.fields,help:mrp_bom_version.field_mrp_bom__end_date
+msgid "Date when this BOM became inactive/historical"
+msgstr ""
+
+#. module: mrp_bom_version
 #: model:ir.model.fields,help:mrp_bom_version.field_mrp_bom__consumption
 msgid ""
 "Defines if you can consume more or less components than the quantity defined on the BoM:\n"
@@ -77,6 +99,11 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_form_view
 #: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_tree_view
 msgid "Draft"
+msgstr ""
+
+#. module: mrp_bom_version
+#: model:ir.model.fields,field_description:mrp_bom_version.field_mrp_bom__end_date
+msgid "End Date"
 msgstr ""
 
 #. module: mrp_bom_version
@@ -176,9 +203,19 @@ msgid "Sequence"
 msgstr ""
 
 #. module: mrp_bom_version
+#: model:ir.model.fields,field_description:mrp_bom_version.field_mrp_bom__start_date
+msgid "Start Date"
+msgstr ""
+
+#. module: mrp_bom_version
 #: model:ir.model.fields,field_description:mrp_bom_version.field_mrp_bom__state
 #: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_search_view
 msgid "Status"
+msgstr ""
+
+#. module: mrp_bom_version
+#: model:ir.model,name:mrp_bom_version.model_stock_move
+msgid "Stock Move"
 msgstr ""
 
 #. module: mrp_bom_version
@@ -234,13 +271,6 @@ msgstr ""
 
 #. module: mrp_bom_version
 #: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_form_view
-msgid ""
-"YYou will activate the BoM, then you won't be able to edit it after this. "
-"Are you sure you want to proceed?"
-msgstr ""
-
-#. module: mrp_bom_version
-#: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_form_view
 #: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_tree_view
 msgid "You are going to create a new version of this BoM. Are you sure?"
 msgstr ""
@@ -254,6 +284,7 @@ msgid ""
 msgstr ""
 
 #. module: mrp_bom_version
+#: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_form_view
 #: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_tree_view
 msgid ""
 "You will activate the BoM, then you won't be able to edit it after this. Are"

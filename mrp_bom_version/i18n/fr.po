@@ -10,7 +10,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: manufacture (8.0)\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2016-12-31 05:27+0000\n"
+"POT-Creation-Date: 2026-04-13 10:11+0000\n"
 "PO-Revision-Date: 2017-01-06 06:12+0000\n"
 "Last-Translator: Christophe CHAUVET <christophe.chauvet@gmail.com>\n"
 "Language-Team: French (http://www.transifex.com/oca/OCA-manufacture-8-0/"
@@ -20,6 +20,16 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: \n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#. module: mrp_bom_version
+#: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_form_view
+msgid "<span class=\"o_form_label\" invisible=\"not end_date\">to</span>"
+msgstr "<span class=\"o_form_label\" invisible=\"not end_date\">au</span>"
+
+#. module: mrp_bom_version
+#: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_form_view
+msgid "<span class=\"o_form_label\">Active from</span>"
+msgstr "<span class=\"o_form_label\">Actif du</span>"
 
 #. module: mrp_bom_version
 #: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_form_view
@@ -71,6 +81,16 @@ msgid "Config Settings"
 msgstr "Paramètres de configuration"
 
 #. module: mrp_bom_version
+#: model:ir.model.fields,help:mrp_bom_version.field_mrp_bom__start_date
+msgid "Date when this BOM became active"
+msgstr "Date à laquelle cette nomenclature est devenue active"
+
+#. module: mrp_bom_version
+#: model:ir.model.fields,help:mrp_bom_version.field_mrp_bom__end_date
+msgid "Date when this BOM became inactive/historical"
+msgstr "Date à laquelle cette nomenclature est devenue inactive/historique"
+
+#. module: mrp_bom_version
 #: model:ir.model.fields,help:mrp_bom_version.field_mrp_bom__consumption
 msgid ""
 "Defines if you can consume more or less components than the quantity defined "
@@ -83,11 +103,18 @@ msgid ""
 "issued when appropriate also.\n"
 "  * Blocked: only a manager can close a manufacturing order when the BoM "
 "consumption is not respected."
-msgstr "Définit si vous pouvez consommer plus ou moins de composants que la quantité définie sur la nomenclature :\n"
+msgstr ""
+"Définit si vous pouvez consommer plus ou moins de composants que la quantité "
+"définie sur la nomenclature :\n"
 "  * Autorisé : autorisé pour tous les utilisateurs de la production.\n"
-"  * Autorisé avec avertissement : autorisé pour tous les utilisateurs de la production avec un résumé des différences de consommation lors de la fermeture de la commande de fabrication.\n"
-"  Note que dans le cas de composant Consommation manuelle, où la consommation est enregistrée exclusivement manuellement, les avertissements de consommation seront toujours émis lorsque nécessaire également.\n"
-"  * Bloqué : seul un gestionnaire peut fermer une commande de fabrication lorsque la consommation de la nomenclature n'est pas respectée."
+"  * Autorisé avec avertissement : autorisé pour tous les utilisateurs de la "
+"production avec un résumé des différences de consommation lors de la "
+"fermeture de la commande de fabrication.\n"
+"  Note que dans le cas de composant Consommation manuelle, où la "
+"consommation est enregistrée exclusivement manuellement, les avertissements "
+"de consommation seront toujours émis lorsque nécessaire également.\n"
+"  * Bloqué : seul un gestionnaire peut fermer une commande de fabrication "
+"lorsque la consommation de la nomenclature n'est pas respectée."
 
 #. module: mrp_bom_version
 #: model:ir.model.fields.selection,name:mrp_bom_version.selection__mrp_bom__state__draft
@@ -95,6 +122,11 @@ msgstr "Définit si vous pouvez consommer plus ou moins de composants que la qua
 #: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_tree_view
 msgid "Draft"
 msgstr "Brouillon"
+
+#. module: mrp_bom_version
+#: model:ir.model.fields,field_description:mrp_bom_version.field_mrp_bom__end_date
+msgid "End Date"
+msgstr "Date de fin"
 
 #. module: mrp_bom_version
 #: model:ir.model.fields,field_description:mrp_bom_version.field_mrp_bom__consumption
@@ -117,7 +149,9 @@ msgstr "Date de l'historique"
 #: model:ir.model.fields,help:mrp_bom_version.field_mrp_bom__product_id
 msgid ""
 "If a product variant is defined the BOM is available only for this product."
-msgstr "Si une variante de produit est définie, la nomenclature est disponible uniquement pour ce produit."
+msgstr ""
+"Si une variante de produit est définie, la nomenclature est disponible "
+"uniquement pour ce produit."
 
 #. module: mrp_bom_version
 #: model:ir.model.fields,field_description:mrp_bom_version.field_res_config_settings__active_draft
@@ -193,10 +227,20 @@ msgid "Sequence"
 msgstr "Séquence"
 
 #. module: mrp_bom_version
+#: model:ir.model.fields,field_description:mrp_bom_version.field_mrp_bom__start_date
+msgid "Start Date"
+msgstr "Date de début"
+
+#. module: mrp_bom_version
 #: model:ir.model.fields,field_description:mrp_bom_version.field_mrp_bom__state
 #: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_search_view
 msgid "Status"
 msgstr "Statut"
+
+#. module: mrp_bom_version
+#: model:ir.model,name:mrp_bom_version.model_stock_move
+msgid "Stock Move"
+msgstr "Mouvement de stock"
 
 #. module: mrp_bom_version
 #: model:ir.model.fields,help:mrp_bom_version.field_res_config_settings__group_mrp_bom_version
@@ -210,9 +254,9 @@ msgid ""
 "If the BOM contains operations, make sure the work center capacity is "
 "accurate."
 msgstr ""
-"Cette quantité devrait être la plus petite quantité que ce produit peut être produit. "
-"Si la nomenclature contient des opérations, assurez-vous que la capacité du centre de travail est "
-"exacte."
+"Cette quantité devrait être la plus petite quantité que ce produit peut être "
+"produit. Si la nomenclature contient des opérations, assurez-vous que la "
+"capacité du centre de travail est exacte."
 
 #. module: mrp_bom_version
 #: model:ir.model.fields,help:mrp_bom_version.field_res_config_settings__active_draft
@@ -234,7 +278,8 @@ msgid ""
 "Unit of Measure (Unit of Measure) is the unit of measurement for the "
 "inventory control"
 msgstr ""
-"Unité de mesure (Unité de mesure) est l'unité de mesure pour le contrôle de l'inventaire"
+"Unité de mesure (Unité de mesure) est l'unité de mesure pour le contrôle de "
+"l'inventaire"
 
 #. module: mrp_bom_version
 #: model:ir.model.fields,field_description:mrp_bom_version.field_mrp_bom__version
@@ -262,15 +307,6 @@ msgstr ""
 
 #. module: mrp_bom_version
 #: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_form_view
-msgid ""
-"YYou will activate the BoM, then you won't be able to edit it after this. "
-"Are you sure you want to proceed?"
-msgstr ""
-"Vous allez activer la nomenclature, alors vous ne pourrez plus l'éditer après ce moment. "
-"Êtes-vous sûr de vouloir continuer?"
-
-#. module: mrp_bom_version
-#: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_form_view
 #: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_tree_view
 msgid "You are going to create a new version of this BoM. Are you sure?"
 msgstr ""
@@ -288,13 +324,21 @@ msgstr ""
 "de vouloir continuer?"
 
 #. module: mrp_bom_version
+#: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_form_view
 #: model_terms:ir.ui.view,arch_db:mrp_bom_version.mrp_bom_version_tree_view
 msgid ""
 "You will activate the BoM, then you won't be able to edit it after this. Are "
 "you sure you want to proceed?"
 msgstr ""
-"Vous allez activer la nomenclature, alors vous ne pourrez plus l'éditer après ce moment. "
-"Êtes-vous sûr de vouloir continuer?"
+"Vous allez activer la nomenclature, alors vous ne pourrez plus l'éditer "
+"après ce moment. Êtes-vous sûr de vouloir continuer?"
+
+#~ msgid ""
+#~ "YYou will activate the BoM, then you won't be able to edit it after this. "
+#~ "Are you sure you want to proceed?"
+#~ msgstr ""
+#~ "Vous allez activer la nomenclature, alors vous ne pourrez plus l'éditer "
+#~ "après ce moment. Êtes-vous sûr de vouloir continuer?"
 
 #~ msgid "Group By..."
 #~ msgstr "Grouper par"
